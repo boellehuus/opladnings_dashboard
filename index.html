@@ -1,12 +1,4 @@
-<div class="error-message" id="errorMessage">
-            Kunne ikke hente data
-        </div>
-        
-        <div class="loading-indicator" id="loadingIndicator">
-            Henter Tesla data...
-        </div>
-        
-        <!-- Setup Instructions (show if not<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="da">
 <head>
     <meta charset="UTF-8">
@@ -324,85 +316,35 @@
             display: block;
         }
         
-        .token-input {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            padding: 12px;
-            color: white;
-            width: 100%;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }
-        
-        .token-input::placeholder {
-            color: rgba(255, 255, 255, 0.5);
-        }
-        
-        .token-setup {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        
-        .token-setup h3 {
-            margin-bottom: 15px;
-            color: #bdc3c7;
-        }
-        
-        .setup-button {
-            background: linear-gradient(135deg, #8e44ad, #9b59b6);
-            border: none;
-            border-radius: 8px;
-            padding: 10px 15px;
-            color: white;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            margin-right: 10px;
-        }
-        
-        .setup-button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(142, 68, 173, 0.3);
-        }
-        
-        .clear-button {
-            background: rgba(231, 76, 60, 0.8);
-            border: none;
-            border-radius: 8px;
-            padding: 10px 15px;
-            color: white;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .clear-button:hover {
-            background: rgba(231, 76, 60, 1);
-            transform: translateY(-1px);
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-            background: #e74c3c;
-        }
-        
-        .status-indicator.connected {
-            background: #27ae60;
-        }
-        
         .connection-status {
             font-size: 12px;
             color: #bdc3c7;
             text-align: center;
             margin-bottom: 15px;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+            background: #e74c3c;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.connected {
+            background: #27ae60;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
         
         /* Web app specific optimizations */
@@ -438,35 +380,17 @@
 <body>
     <div class="container">
         <div class="error-message" id="errorMessage">
-            Kunne ikke hente data fra Homey
+            Kunne ikke hente data
         </div>
         
         <div class="loading-indicator" id="loadingIndicator">
-            Henter data fra Homey...
-        </div>
-        
-        <!-- Token Setup -->
-        <div class="token-setup" id="tokenSetup">
-            <h3>🔑 Konfigurer Homey Token</h3>
-            <p style="margin-bottom: 15px; color: #bdc3c7; font-size: 13px;">
-                <strong>Sådan får du dit token:</strong><br>
-                1. Gå til <a href="https://homey.ink" target="_blank" style="color: #9b59b6;">homey.ink</a><br>
-                2. Log ind med din Homey konto<br>
-                3. Åbn Developer Console (F12)<br>
-                4. Skriv: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">localStorage.getItem('access_token')</code><br>
-                5. Kopier token (uden anførselstegn)
-            </p>
-            <input type="text" class="token-input" id="tokenInput" placeholder="Indsæt dit Homey Personal Access Token her...">
-            <div>
-                <button class="setup-button" onclick="saveToken()">💾 Gem Token</button>
-                <button class="clear-button" onclick="clearToken()" style="display: none;" id="clearTokenBtn">🗑️ Slet Token</button>
-            </div>
+            Henter Tesla data...
         </div>
         
         <!-- Connection Status -->
         <div class="connection-status" id="connectionStatus">
             <span class="status-indicator" id="statusIndicator"></span>
-            <span id="statusText">Ikke forbundet til Homey</span>
+            <span id="statusText">Starter...</span>
         </div>
         
         <div class="header">
@@ -521,26 +445,13 @@
     </div>
 
     <script>
-        // Configuration - ⚠️ UPDATE THIS WITH YOUR GIST URL
+        // Configuration
         const CONFIG = {
-            refreshInterval: 60000, // 1 minute (HomeyScript updates every 15 min)
+            refreshInterval: 60000, // 1 minute 
             retryAttempts: 3,
             retryDelay: 2000,
-            // 🌐 YOUR ACTUAL GIST RAW URL:
-            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json',
-            
-            // 📊 Variables from your Tesla Elpris Script:
-            expectedVars: [
-                'Tesla_kWh_needed',           // Input: 7.33 kWh
-                'Tesla_charging_hours',       // Input: 1 time
-                'Tesla_optimal_start_time',   // Output: "14:00" 
-                'Tesla_optimal_price',        // Output: 1.17 kr/kWh
-                'Tesla_total_cost',          // Output: 8.58 kr
-                'Tesla_compact_schedule',     // Output: "I morgen 14"
-                'Tesla_planned_schedule',     // Output: Detaljeret plan
-                'Tesla_start_time_with_date', // Output: "kl. 14:00 i morgen"
-                'Tesla_status_text'          // Output: Fuld status tekst
-            ]
+            // Your Gist data URL (working perfectly!)
+            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json'
         };
         
         // Global state
@@ -550,7 +461,7 @@
         let refreshTimer = null;
         let lastDataUpdate = null;
         
-        // Sample data as fallback
+        // Fallback data (matches your real price data pattern)
         const fallbackData = {
             yesterday: [
                 1.95, 1.87, 1.82, 1.79, 1.88, 1.94, 2.15, 2.31,
@@ -558,9 +469,9 @@
                 1.47, 1.89, 2.25, 2.48, 2.52, 2.31, 2.11, 1.98
             ],
             today: [
-                2.06, 2.03, 1.98, 1.93, 1.92, 1.90, 1.96, 1.91, 
-                1.77, 1.30, 1.19, 1.19, 1.19, 1.19, 1.19, 1.19, 
-                1.19, 1.84, 2.18, 2.40, 2.42, 2.20, 2.02, 1.88
+                2.07, 2.03, 2.01, 2.00, 2.00, 2.00, 2.02, 2.00,
+                1.96, 1.78, 1.38, 1.21, 1.19, 1.19, 1.19, 1.19,
+                1.18, 1.60, 1.94, 1.99, 2.04, 1.75, 1.65, 1.68
             ],
             tomorrow: [
                 1.88, 1.82, 1.76, 1.71, 1.68, 1.73, 1.89, 1.95,
@@ -571,38 +482,21 @@
         
         const chargingSchedule = {
             yesterday: [],
-            today: [10, 11],
-            tomorrow: []
+            today: [14], // Based on your Tesla data: 14:00
+            tomorrow: [14]
         };
         
         let priceData = fallbackData[currentDay];
         
-        // Data URL configuration - REPLACE WITH YOUR GIST URL
-        function getDataURL() {
-            if (CONFIG.dataURL && !CONFIG.dataURL.includes('USERNAME')) {
-                return CONFIG.dataURL;
-            }
-            
-            // If not configured, show setup message
-            console.log('⚠️ Data URL not configured');
-            return null;
-        }
-        
         // Data fetching functions
         async function fetchTeslaData() {
-            const dataURL = getDataURL();
-            if (!dataURL) {
-                showError('Data URL ikke konfigureret. Opdater CONFIG.dataURL i koden.');
-                return;
-            }
-            
             try {
                 showLoading(true);
                 hideError();
                 updateConnectionStatus('connecting', 'Henter Tesla data...');
-                console.log('🔄 Fetching Tesla data from:', dataURL);
+                console.log('🔄 Fetching Tesla data from Gist...');
                 
-                const response = await fetch(dataURL + '?t=' + Date.now()); // Cache busting
+                const response = await fetch(CONFIG.dataURL + '?t=' + Date.now());
                 
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -621,15 +515,9 @@
                 const ageMinutes = Math.floor(dataAge / 60000);
                 
                 console.log(`📅 Data age: ${ageMinutes} minutes`);
+                updateConnectionStatus('connected', `Data: ${ageMinutes} min gammel`);
                 
-                if (ageMinutes > 30) {
-                    console.log('⚠️ Data is older than 30 minutes');
-                    updateConnectionStatus('connected', `Data: ${ageMinutes} min gammel`);
-                } else {
-                    updateConnectionStatus('connected', `Data opdateret (${ageMinutes} min)`);
-                }
-                
-                // Update UI with real data from HomeyScript
+                // Update UI with real data
                 updateUIWithTeslaData(teslaData);
                 
                 hasHomeyData = true;
@@ -651,92 +539,69 @@
         }
         
         function updateUIWithTeslaData(teslaData) {
-            console.log('🎨 Updating UI with Tesla data from your Elpris Script...');
+            console.log('🎨 Updating UI with Tesla data from Homey...');
             
-            // 📅 CHARGING SCHEDULE (fra dit Tesla Elpris Script)
+            // Update charging schedule display
             if (teslaData.Tesla_compact_schedule) {
                 updateChargingDisplay(teslaData.Tesla_compact_schedule);
-                console.log('📅 Compact schedule:', teslaData.Tesla_compact_schedule);
+                console.log('📅 Charging schedule:', teslaData.Tesla_compact_schedule);
             }
             
-            // 💰 OPTIMAL PRICE (beregnet af dit script)
+            // Update optimal price
             if (teslaData.Tesla_optimal_price) {
                 updateCurrentPrice(teslaData.Tesla_optimal_price);
                 console.log('💰 Optimal price:', teslaData.Tesla_optimal_price, 'kr/kWh');
             }
             
-            // 💸 TOTAL COST (beregnet af dit script)
+            // Update total cost
             if (teslaData.Tesla_total_cost) {
                 updateTotalCost(teslaData.Tesla_total_cost);
                 console.log('💸 Total cost:', teslaData.Tesla_total_cost, 'kr');
             }
             
-            // ⚡ KWH NEEDED (input til dit script)
+            // Update kWh needed
             if (teslaData.Tesla_kWh_needed) {
                 updatekWhNeed(teslaData.Tesla_kWh_needed);
                 console.log('⚡ kWh needed:', teslaData.Tesla_kWh_needed, 'kWh');
             }
             
-            // 📈 PRICE CHART FROM DK-ENERGY DATA
+            // Update price chart from real data
             if (teslaData.Tesla_price_data && Array.isArray(teslaData.Tesla_price_data)) {
                 if (teslaData.Tesla_price_data.length === 24) {
                     priceData = teslaData.Tesla_price_data;
                     
-                    // Highlight charging hours based on your Tesla script
+                    // Update charging hours based on optimal start time
                     updateChargingHours(teslaData);
                     
                     generateChart();
                     updateStats();
-                    console.log('📊 Updated price chart with real DK-Energy data');
-                    console.log(`💰 Today's price range: ${Math.min(...priceData).toFixed(2)} - ${Math.max(...priceData).toFixed(2)} kr/kWh`);
-                } else {
-                    console.log(`⚠️ Invalid price data length: ${teslaData.Tesla_price_data.length} (expected 24)`);
+                    console.log('📊 Updated price chart with real BilligkWh data');
+                    console.log(`💰 Price range: ${Math.min(...priceData).toFixed(2)} - ${Math.max(...priceData).toFixed(2)} kr/kWh`);
                 }
             }
             
-            // 💚💜 MIN/MAX PRICES (auto-calculated from price data)
+            // Update min/max prices
             if (teslaData.Tesla_cheapest_price) {
                 document.getElementById('cheapestPrice').textContent = 
                     parseFloat(teslaData.Tesla_cheapest_price).toFixed(2).replace('.', ',');
-                console.log('💚 Cheapest price today:', teslaData.Tesla_cheapest_price, 'kr/kWh');
             }
             
             if (teslaData.Tesla_highest_price) {
                 document.getElementById('highestPrice').textContent = 
                     parseFloat(teslaData.Tesla_highest_price).toFixed(2).replace('.', ',');
-                console.log('🔴 Highest price today:', teslaData.Tesla_highest_price, 'kr/kWh');
             }
             
-            // 📋 STATUS TEXT (fra dit Tesla script)
-            if (teslaData.Tesla_status_text) {
-                console.log('📋 Full Tesla status:', teslaData.Tesla_status_text);
-            }
-            
-            // ⏰ START TIME WITH DATE (fra dit Tesla script)
-            if (teslaData.Tesla_start_time_with_date) {
-                console.log('⏰ Start time with date:', teslaData.Tesla_start_time_with_date);
-            }
-            
-            // 📊 LOG DATA QUALITY 
-            const metadata = teslaData._metadata;
-            if (metadata) {
-                console.log(`📈 Data quality: ${metadata.foundVariables}/${metadata.totalVariables} variables found`);
-                console.log(`🕒 Last update: ${metadata.homeyTime}`);
-                console.log(`🤖 Script version: ${metadata.scriptVersion}`);
-                console.log(`🏠 Source: ${metadata.homeyName}`);
-            }
-            
-            console.log('✅ UI updated successfully with Tesla Elpris Script data');
+            console.log('✅ UI updated successfully with real Tesla data');
         }
         
         function updateChargingHours(teslaData) {
-            // Parse optimal start time and hours to highlight chart
+            // Parse optimal start time to highlight chart
             if (teslaData.Tesla_optimal_start_time && teslaData.Tesla_charging_hours) {
                 try {
                     const startHour = parseInt(teslaData.Tesla_optimal_start_time.split(':')[0]);
                     const chargingHours = parseInt(teslaData.Tesla_charging_hours);
                     
-                    // Update global charging schedule for chart highlighting
+                    // Update charging schedule for chart highlighting
                     chargingSchedule[currentDay] = [];
                     for (let i = 0; i < chargingHours; i++) {
                         const hour = (startHour + i) % 24;
@@ -748,12 +613,32 @@
                     console.log('⚠️ Could not parse charging hours:', error);
                 }
             }
-        }Homey Pro'}`);
-            }
-            
-            console.log('✅ UI updated successfully with Homey Tesla data');
         }
         
+        function handleFetchError(error) {
+            retryCount++;
+            
+            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                showError('❌ Kan ikke hente data. Tjek internet forbindelse');
+                updateConnectionStatus('disconnected', 'Netværk fejl');
+            } else if (error.message.includes('404')) {
+                showError('❌ Data ikke fundet. Tjek Gist URL');
+                updateConnectionStatus('disconnected', 'Data ikke fundet');
+            } else {
+                showError(`❌ Fejl: ${error.message}`);
+                updateConnectionStatus('disconnected', 'Data fejl');
+            }
+            
+            if (retryCount <= CONFIG.retryAttempts) {
+                console.log(`🔄 Retrying... (${retryCount}/${CONFIG.retryAttempts})`);
+                setTimeout(fetchTeslaData, CONFIG.retryDelay);
+            } else {
+                console.log('❌ Max retries reached');
+                retryCount = 0;
+            }
+        }
+        
+        // UI Update Functions
         function updateConnectionStatus(status, message) {
             const indicator = document.getElementById('statusIndicator');
             const text = document.getElementById('statusText');
@@ -766,194 +651,21 @@
             text.textContent = message;
         }
         
-        // Homey API functions
-        async function fetchHomeyData() {
-            if (!homeyToken) {
-                console.log('❌ No token available');
-                updateConnectionStatus('disconnected', 'Token mangler');
-                return;
-            }
-            
-            try {
-                showLoading(true);
-                hideError();
-                updateConnectionStatus('connecting', 'Henter data...');
-                console.log('🔄 Fetching Homey data with token...');
-                
-                // First get user info to test token and find Homey
-                const userResponse = await fetch(`${CONFIG.homeyCloudAPI}/user/me`, {
-                    headers: {
-                        'Authorization': `Bearer ${homeyToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!userResponse.ok) {
-                    if (userResponse.status === 401) {
-                        throw new Error('Token er ugyldigt eller udløbet');
-                    }
-                    throw new Error(`User API fejl: ${userResponse.status}`);
-                }
-                
-                const userData = await userResponse.json();
-                console.log('👤 Got user data:', userData.email || userData.name || 'Unknown user');
-                
-                // Get user's Homeys
-                const homeysResponse = await fetch(`${CONFIG.homeyCloudAPI}/user/homey`, {
-                    headers: {
-                        'Authorization': `Bearer ${homeyToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!homeysResponse.ok) {
-                    throw new Error(`Homeys API fejl: ${homeysResponse.status}`);
-                }
-                
-                const homeys = await homeysResponse.json();
-                console.log('🏠 Found Homeys:', homeys.length);
-                
-                if (homeys.length === 0) {
-                    throw new Error('Ingen Homey enheder fundet på din konto');
-                }
-                
-                const homeyId = homeys[0].id;
-                const homeyName = homeys[0].name || 'Homey';
-                console.log('🎯 Using Homey:', homeyName, '(' + homeyId + ')');
-                
-                // Get logic variables from Homey
-                const variablesResponse = await fetch(`${CONFIG.homeyCloudAPI}/homey/${homeyId}/logic/variables`, {
-                    headers: {
-                        'Authorization': `Bearer ${homeyToken}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (!variablesResponse.ok) {
-                    throw new Error(`Variables API fejl: ${variablesResponse.status}`);
-                }
-                
-                const variables = await variablesResponse.json();
-                console.log('📊 Found variables:', Object.keys(variables).length);
-                
-                // Look for Tesla-related variables
-                const teslaVars = {};
-                const targetVars = [
-                    'Tesla_compact_schedule',
-                    'Tesla_optimal_price',
-                    'Tesla_total_cost',
-                    'Tesla_kWh_needed',
-                    'Tesla_charging_hours',
-                    'Tesla_price_data',
-                    'Tesla_current_price'
-                ];
-                
-                let foundTeslaVars = 0;
-                
-                for (const [id, variable] of Object.entries(variables)) {
-                    // Look for exact matches or Tesla-related variables
-                    if (targetVars.includes(variable.name) || variable.name.toLowerCase().includes('tesla')) {
-                        teslaVars[variable.name] = variable.value;
-                        console.log(`✅ Found ${variable.name}:`, variable.value);
-                        foundTeslaVars++;
-                    }
-                }
-                
-                if (foundTeslaVars === 0) {
-                    console.log('⚠️ No Tesla variables found, using fallback data');
-                    updateConnectionStatus('connected', `Forbundet til ${homeyName} (ingen Tesla data)`);
-                } else {
-                    console.log(`🎉 Found ${foundTeslaVars} Tesla variables`);
-                    updateConnectionStatus('connected', `Forbundet til ${homeyName}`);
-                    
-                    // Update UI with real data from Homey
-                    if (teslaVars.Tesla_compact_schedule) {
-                        updateChargingDisplay(teslaVars.Tesla_compact_schedule);
-                    }
-                    if (teslaVars.Tesla_optimal_price || teslaVars.Tesla_current_price) {
-                        updateCurrentPrice(teslaVars.Tesla_optimal_price || teslaVars.Tesla_current_price);
-                    }
-                    if (teslaVars.Tesla_total_cost) {
-                        updateTotalCost(teslaVars.Tesla_total_cost);
-                    }
-                    if (teslaVars.Tesla_kWh_needed) {
-                        updatekWhNeed(teslaVars.Tesla_kWh_needed);
-                    }
-                    
-                    // If we have price data, use it
-                    if (teslaVars.Tesla_price_data) {
-                        try {
-                            const priceDataFromHomey = JSON.parse(teslaVars.Tesla_price_data);
-                            if (Array.isArray(priceDataFromHomey) && priceDataFromHomey.length === 24) {
-                                priceData = priceDataFromHomey;
-                                generateChart();
-                                updateStats();
-                                console.log('📈 Updated chart with real price data');
-                            }
-                        } catch (e) {
-                            console.log('⚠️ Could not parse Tesla_price_data:', e);
-                        }
-                    }
-                    
-                    hasHomeyData = true;
-                }
-                
-                retryCount = 0;
-                showLoading(false);
-                
-                // Start auto-refresh if not already running
-                if (!refreshTimer) {
-                    refreshTimer = setInterval(fetchHomeyData, CONFIG.refreshInterval);
-                    console.log('🔄 Auto-refresh started');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error fetching Homey data:', error);
-                handleFetchError(error);
-            }
-        }
-        
-        function handleFetchError(error) {
-            retryCount++;
-            
-            if (error.message.includes('Token er ugyldigt') || error.message.includes('401')) {
-                showError('Token er ugyldigt eller udløbet. Få et nyt token fra homey.ink');
-                updateConnectionStatus('disconnected', 'Token udløbet');
-                showLoading(false);
-                // Don't retry on auth errors
-                retryCount = 0;
-                return;
-            }
-            
-            if (retryCount <= CONFIG.retryAttempts) {
-                console.log(`🔄 Retrying... (${retryCount}/${CONFIG.retryAttempts})`);
-                updateConnectionStatus('connecting', `Genforsøg ${retryCount}/${CONFIG.retryAttempts}...`);
-                setTimeout(fetchHomeyData, CONFIG.retryDelay);
-            } else {
-                console.log('❌ Max retries reached');
-                showError(`Kunne ikke hente data fra Homey: ${error.message}`);
-                updateConnectionStatus('disconnected', 'Forbindelse fejlede');
-                showLoading(false);
-                retryCount = 0;
-            }
-        }
-        
         function showLoading(show) {
-            const indicator = document.getElementById('loadingIndicator');
-            indicator.classList.toggle('show', show);
+            document.getElementById('loadingIndicator').classList.toggle('show', show);
         }
         
         function showError(message) {
             const errorEl = document.getElementById('errorMessage');
             errorEl.textContent = message;
             errorEl.classList.add('show');
+            setTimeout(() => errorEl.classList.remove('show'), 5000);
         }
         
         function hideError() {
             document.getElementById('errorMessage').classList.remove('show');
         }
         
-        // UI Update functions
         function updateChargingDisplay(schedule) {
             document.getElementById('chargingTime').textContent = schedule;
         }
@@ -1032,18 +744,7 @@
             });
             
             const buttons = document.querySelectorAll('.time-option');
-            console.log('🔘 Found buttons:', buttons.length);
             
-            // Safety check to prevent crashes
-            if (buttons.length < 3) {
-                console.error('❌ Expected 3 time-option buttons, found:', buttons.length);
-                if (buttons.length > 0) {
-                    buttons[0].classList.add('active');
-                }
-                return;
-            }
-            
-            // Safe button selection
             if (day === 'yesterday' && buttons[0]) {
                 buttons[0].classList.add('active');
             } else if (day === 'today' && buttons[1]) {
@@ -1087,7 +788,7 @@
         
         // Initialization
         function init() {
-            console.log('🚀 Initializing Tesla Dashboard with Webhook data...');
+            console.log('🚀 Initializing Tesla Dashboard...');
             
             // Update date display
             updateDateDisplay(currentDay);
@@ -1096,20 +797,10 @@
             generateChart();
             updateStats();
             
-            // Check if data URL is configured and show setup if needed
-            const dataURL = getDataURL();
-            if (dataURL) {
-                console.log('📡 Data URL configured, fetching Tesla data...');
-                console.log('🔗 Using URL:', dataURL);
-                updateConnectionStatus('connecting', 'Starter...');
-                fetchTeslaData();
-            } else {
-                console.log('⚙️ Data URL not configured, showing setup instructions');
-                console.log('📋 Expected variables from your Homey:', CONFIG.expectedVars);
-                updateConnectionStatus('disconnected', 'Setup påkrævet');
-                document.getElementById('setupInstructions').style.display = 'block';
-                showError('🔧 Konfigurer din GitHub Gist URL i CONFIG.dataURL først');
-            }
+            // Start fetching real data
+            console.log('📡 Starting data fetch from Gist...');
+            updateConnectionStatus('connecting', 'Starter...');
+            fetchTeslaData();
             
             console.log('✅ Dashboard initialized');
         }
@@ -1117,22 +808,19 @@
         // Start the app when page loads
         document.addEventListener('DOMContentLoaded', init);
         
-        // Handle page visibility changes (pause/resume when tab is hidden/visible)
+        // Handle page visibility for battery optimization
         document.addEventListener('visibilitychange', function() {
             if (document.hidden) {
-                // Page is hidden, stop auto-refresh to save battery
                 if (refreshTimer) {
                     clearInterval(refreshTimer);
                     refreshTimer = null;
                     console.log('⏸️ Auto-refresh paused (tab hidden)');
                 }
             } else {
-                // Page is visible again, resume auto-refresh if we have a token
-                if (homeyToken && !refreshTimer) {
-                    refreshTimer = setInterval(fetchHomeyData, CONFIG.refreshInterval);
+                if (!refreshTimer) {
+                    refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
                     console.log('▶️ Auto-refresh resumed (tab visible)');
-                    // Also fetch data immediately
-                    fetchHomeyData();
+                    fetchTeslaData();
                 }
             }
         });
