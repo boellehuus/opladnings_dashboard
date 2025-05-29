@@ -316,6 +316,87 @@
             display: block;
         }
         
+        .token-input {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            width: 100%;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        
+        .token-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .token-setup {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .token-setup h3 {
+            margin-bottom: 15px;
+            color: #bdc3c7;
+        }
+        
+        .setup-button {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-right: 10px;
+        }
+        
+        .setup-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(142, 68, 173, 0.3);
+        }
+        
+        .clear-button {
+            background: rgba(231, 76, 60, 0.8);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .clear-button:hover {
+            background: rgba(231, 76, 60, 1);
+            transform: translateY(-1px);
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+            background: #e74c3c;
+        }
+        
+        .status-indicator.connected {
+            background: #27ae60;
+        }
+        
+        .connection-status {
+            font-size: 12px;
+            color: #bdc3c7;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
         /* Web app specific optimizations */
         @media (display-mode: standalone) {
             body {
@@ -353,7 +434,31 @@
         </div>
         
         <div class="loading-indicator" id="loadingIndicator">
-            Henter data...
+            Henter data fra Homey...
+        </div>
+        
+        <!-- Token Setup -->
+        <div class="token-setup" id="tokenSetup">
+            <h3>🔑 Konfigurer Homey Token</h3>
+            <p style="margin-bottom: 15px; color: #bdc3c7; font-size: 13px;">
+                <strong>Sådan får du dit token:</strong><br>
+                1. Gå til <a href="https://homey.ink" target="_blank" style="color: #9b59b6;">homey.ink</a><br>
+                2. Log ind med din Homey konto<br>
+                3. Åbn Developer Console (F12)<br>
+                4. Skriv: <code style="background: rgba(0,0,0,0.3); padding: 2px 4px; border-radius: 3px;">localStorage.getItem('access_token')</code><br>
+                5. Kopier token (uden anførselstegn)
+            </p>
+            <input type="text" class="token-input" id="tokenInput" placeholder="Indsæt dit Homey Personal Access Token her...">
+            <div>
+                <button class="setup-button" onclick="saveToken()">💾 Gem Token</button>
+                <button class="clear-button" onclick="clearToken()" style="display: none;" id="clearTokenBtn">🗑️ Slet Token</button>
+            </div>
+        </div>
+        
+        <!-- Connection Status -->
+        <div class="connection-status" id="connectionStatus">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">Ikke forbundet til Homey</span>
         </div>
         
         <div class="header">
@@ -410,16 +515,18 @@
     <script>
         // Configuration
         const CONFIG = {
-            refreshInterval: 60000, // 1 minute
-            homeyApiUrl: '/api/homey', // Local Homey API endpoint
+            refreshInterval: 30000, // 30 seconds
             retryAttempts: 3,
-            retryDelay: 2000
+            retryDelay: 2000,
+            homeyCloudAPI: 'https://api.athom.com'
         };
         
         // Global state
         let currentDay = 'today';
         let retryCount = 0;
         let hasHomeyData = false;
+        let homeyToken = null;
+        let refreshTimer = null;
         
         // Sample data as fallback
         const fallbackData = {
@@ -448,64 +555,247 @@
         
         let priceData = fallbackData[currentDay];
         
-        // Homey API Integration
-        async function fetchHomeyData() {
-            try {
-                showLoading(true);
-                hideError();
+        // Token management
+        function loadToken() {
+            homeyToken = localStorage.getItem('homey_token');
+            if (homeyToken) {
+                console.log('🔑 Token loaded from storage');
+                document.getElementById('tokenSetup').style.display = 'none';
+                document.getElementById('clearTokenBtn').style.display = 'inline-block';
+                updateConnectionStatus('connecting', 'Forbinder til Homey...');
+                return true;
+            }
+            console.log('❌ No token found');
+            document.getElementById('tokenSetup').style.display = 'block';
+            updateConnectionStatus('disconnected', 'Token mangler');
+            return false;
+        }
+        
+        function saveToken() {
+            const tokenInput = document.getElementById('tokenInput');
+            const token = tokenInput.value.trim();
+            
+            if (!token) {
+                alert('Indtast venligst et token');
+                return;
+            }
+            
+            // Basic token validation
+            if (token.length < 50) {
+                alert('Token ser for kort ud. Sørg for at kopiere hele token fra homey.ink');
+                return;
+            }
+            
+            localStorage.setItem('homey_token', token);
+            homeyToken = token;
+            
+            console.log('✅ Token saved');
+            document.getElementById('tokenSetup').style.display = 'none';
+            document.getElementById('clearTokenBtn').style.display = 'inline-block';
+            document.getElementById('tokenInput').value = '';
+            
+            // Try to fetch data immediately
+            fetchHomeyData();
+        }
+        
+        function clearToken() {
+            if (confirm('Er du sikker på at du vil slette dit Homey token?')) {
+                localStorage.removeItem('homey_token');
+                homeyToken = null;
+                document.getElementById('tokenSetup').style.display = 'block';
+                document.getElementById('clearTokenBtn').style.display = 'none';
+                updateConnectionStatus('disconnected', 'Token slettet');
                 
-                // Fetch Tesla variables from Homey
-                const variables = await Promise.all([
-                    fetchHomeyVariable('Tesla_compact_schedule'),
-                    fetchHomeyVariable('Tesla_optimal_price'),
-                    fetchHomeyVariable('Tesla_total_cost'),
-                    fetchHomeyVariable('Tesla_kWh_needed'),
-                    fetchHomeyVariable('Tesla_charging_hours')
-                ]);
+                // Stop auto-refresh
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                }
                 
-                // Update UI with real data
-                if (variables[0]) updateChargingDisplay(variables[0]);
-                if (variables[1]) updateCurrentPrice(variables[1]);
-                if (variables[2]) updateTotalCost(variables[2]);
-                if (variables[3]) updatekWhNeed(variables[3]);
-                
-                hasHomeyData = true;
-                retryCount = 0;
-                showLoading(false);
-                
-                console.log('Successfully fetched data from Homey');
-                
-            } catch (error) {
-                console.error('Error fetching Homey data:', error);
-                handleFetchError(error);
+                console.log('🗑️ Token cleared');
+                hasHomeyData = false;
             }
         }
         
-        async function fetchHomeyVariable(variableName) {
-            const response = await fetch(`/api/manager/logic/variable/${variableName}`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
+        function updateConnectionStatus(status, message) {
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+            indicator.className = 'status-indicator';
+            if (status === 'connected') {
+                indicator.classList.add('connected');
             }
             
-            const data = await response.json();
-            return data.value;
+            text.textContent = message;
+        }
+        
+        // Homey API functions
+        async function fetchHomeyData() {
+            if (!homeyToken) {
+                console.log('❌ No token available');
+                updateConnectionStatus('disconnected', 'Token mangler');
+                return;
+            }
+            
+            try {
+                showLoading(true);
+                hideError();
+                updateConnectionStatus('connecting', 'Henter data...');
+                console.log('🔄 Fetching Homey data with token...');
+                
+                // First get user info to test token and find Homey
+                const userResponse = await fetch(`${CONFIG.homeyCloudAPI}/user/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${homeyToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!userResponse.ok) {
+                    if (userResponse.status === 401) {
+                        throw new Error('Token er ugyldigt eller udløbet');
+                    }
+                    throw new Error(`User API fejl: ${userResponse.status}`);
+                }
+                
+                const userData = await userResponse.json();
+                console.log('👤 Got user data:', userData.email || userData.name || 'Unknown user');
+                
+                // Get user's Homeys
+                const homeysResponse = await fetch(`${CONFIG.homeyCloudAPI}/user/homey`, {
+                    headers: {
+                        'Authorization': `Bearer ${homeyToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!homeysResponse.ok) {
+                    throw new Error(`Homeys API fejl: ${homeysResponse.status}`);
+                }
+                
+                const homeys = await homeysResponse.json();
+                console.log('🏠 Found Homeys:', homeys.length);
+                
+                if (homeys.length === 0) {
+                    throw new Error('Ingen Homey enheder fundet på din konto');
+                }
+                
+                const homeyId = homeys[0].id;
+                const homeyName = homeys[0].name || 'Homey';
+                console.log('🎯 Using Homey:', homeyName, '(' + homeyId + ')');
+                
+                // Get logic variables from Homey
+                const variablesResponse = await fetch(`${CONFIG.homeyCloudAPI}/homey/${homeyId}/logic/variables`, {
+                    headers: {
+                        'Authorization': `Bearer ${homeyToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!variablesResponse.ok) {
+                    throw new Error(`Variables API fejl: ${variablesResponse.status}`);
+                }
+                
+                const variables = await variablesResponse.json();
+                console.log('📊 Found variables:', Object.keys(variables).length);
+                
+                // Look for Tesla-related variables
+                const teslaVars = {};
+                const targetVars = [
+                    'Tesla_compact_schedule',
+                    'Tesla_optimal_price',
+                    'Tesla_total_cost',
+                    'Tesla_kWh_needed',
+                    'Tesla_charging_hours',
+                    'Tesla_price_data',
+                    'Tesla_current_price'
+                ];
+                
+                let foundTeslaVars = 0;
+                
+                for (const [id, variable] of Object.entries(variables)) {
+                    // Look for exact matches or Tesla-related variables
+                    if (targetVars.includes(variable.name) || variable.name.toLowerCase().includes('tesla')) {
+                        teslaVars[variable.name] = variable.value;
+                        console.log(`✅ Found ${variable.name}:`, variable.value);
+                        foundTeslaVars++;
+                    }
+                }
+                
+                if (foundTeslaVars === 0) {
+                    console.log('⚠️ No Tesla variables found, using fallback data');
+                    updateConnectionStatus('connected', `Forbundet til ${homeyName} (ingen Tesla data)`);
+                } else {
+                    console.log(`🎉 Found ${foundTeslaVars} Tesla variables`);
+                    updateConnectionStatus('connected', `Forbundet til ${homeyName}`);
+                    
+                    // Update UI with real data from Homey
+                    if (teslaVars.Tesla_compact_schedule) {
+                        updateChargingDisplay(teslaVars.Tesla_compact_schedule);
+                    }
+                    if (teslaVars.Tesla_optimal_price || teslaVars.Tesla_current_price) {
+                        updateCurrentPrice(teslaVars.Tesla_optimal_price || teslaVars.Tesla_current_price);
+                    }
+                    if (teslaVars.Tesla_total_cost) {
+                        updateTotalCost(teslaVars.Tesla_total_cost);
+                    }
+                    if (teslaVars.Tesla_kWh_needed) {
+                        updatekWhNeed(teslaVars.Tesla_kWh_needed);
+                    }
+                    
+                    // If we have price data, use it
+                    if (teslaVars.Tesla_price_data) {
+                        try {
+                            const priceDataFromHomey = JSON.parse(teslaVars.Tesla_price_data);
+                            if (Array.isArray(priceDataFromHomey) && priceDataFromHomey.length === 24) {
+                                priceData = priceDataFromHomey;
+                                generateChart();
+                                updateStats();
+                                console.log('📈 Updated chart with real price data');
+                            }
+                        } catch (e) {
+                            console.log('⚠️ Could not parse Tesla_price_data:', e);
+                        }
+                    }
+                    
+                    hasHomeyData = true;
+                }
+                
+                retryCount = 0;
+                showLoading(false);
+                
+                // Start auto-refresh if not already running
+                if (!refreshTimer) {
+                    refreshTimer = setInterval(fetchHomeyData, CONFIG.refreshInterval);
+                    console.log('🔄 Auto-refresh started');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error fetching Homey data:', error);
+                handleFetchError(error);
+            }
         }
         
         function handleFetchError(error) {
             retryCount++;
             
+            if (error.message.includes('Token er ugyldigt') || error.message.includes('401')) {
+                showError('Token er ugyldigt eller udløbet. Få et nyt token fra homey.ink');
+                updateConnectionStatus('disconnected', 'Token udløbet');
+                showLoading(false);
+                // Don't retry on auth errors
+                retryCount = 0;
+                return;
+            }
+            
             if (retryCount <= CONFIG.retryAttempts) {
-                console.log(`Retrying... (${retryCount}/${CONFIG.retryAttempts})`);
+                console.log(`🔄 Retrying... (${retryCount}/${CONFIG.retryAttempts})`);
+                updateConnectionStatus('connecting', `Genforsøg ${retryCount}/${CONFIG.retryAttempts}...`);
                 setTimeout(fetchHomeyData, CONFIG.retryDelay);
             } else {
-                console.log('Max retries reached, using fallback data');
-                showError('Kunne ikke hente data fra Homey. Viser demo data.');
+                console.log('❌ Max retries reached');
+                showError(`Kunne ikke hente data fra Homey: ${error.message}`);
+                updateConnectionStatus('disconnected', 'Forbindelse fejlede');
                 showLoading(false);
                 retryCount = 0;
             }
@@ -513,12 +803,7 @@
         
         function showLoading(show) {
             const indicator = document.getElementById('loadingIndicator');
-            // Only show loading if we don't have Homey data yet
-            if (!hasHomeyData) {
-                indicator.classList.toggle('show', show);
-            } else {
-                indicator.classList.remove('show');
-            }
+            indicator.classList.toggle('show', show);
         }
         
         function showError(message) {
@@ -576,11 +861,11 @@
                 if (currentChargingHours.includes(index)) {
                     bar.classList.add('charging');
                 } else {
-                    if (price < 2.5) {
+                    if (price < 1.5) {
                         bar.classList.add('green');
-                    } else if (price < 3.0) {
+                    } else if (price < 2.0) {
                         bar.classList.add('orange');
-                    } else if (price < 3.5) {
+                    } else if (price < 2.5) {
                         bar.classList.add('red');
                     } else {
                         bar.classList.add('purple');
@@ -602,28 +887,32 @@
         }
         
         function switchDay(day) {
+            console.log('📅 switchDay called with:', day);
+            
             // Update active button
             document.querySelectorAll('.time-option').forEach(btn => {
                 btn.classList.remove('active');
             });
             
             const buttons = document.querySelectorAll('.time-option');
-            console.log('Found buttons:', buttons.length); // Debug info
+            console.log('🔘 Found buttons:', buttons.length);
             
-            if (buttons.length >= 3) {
-                if (day === 'yesterday') {
-                    buttons[0].classList.add('active');
-                } else if (day === 'today') {
-                    buttons[1].classList.add('active');
-                } else if (day === 'tomorrow') {
-                    buttons[2].classList.add('active');
-                }
-            } else {
-                console.error('Expected 3 time-option buttons, found:', buttons.length);
-                // Fallback: just add active to first button
+            // Safety check to prevent crashes
+            if (buttons.length < 3) {
+                console.error('❌ Expected 3 time-option buttons, found:', buttons.length);
                 if (buttons.length > 0) {
                     buttons[0].classList.add('active');
                 }
+                return;
+            }
+            
+            // Safe button selection
+            if (day === 'yesterday' && buttons[0]) {
+                buttons[0].classList.add('active');
+            } else if (day === 'today' && buttons[1]) {
+                buttons[1].classList.add('active');
+            } else if (day === 'tomorrow' && buttons[2]) {
+                buttons[2].classList.add('active');
             }
             
             // Update current day and price data
@@ -636,7 +925,6 @@
             // Regenerate chart and update stats
             generateChart();
             updateStats();
-            updateChargingInfo();
         }
         
         function updateDateDisplay(day) {
@@ -660,54 +948,47 @@
             document.getElementById('currentDate').textContent = displayDate;
         }
         
-        function updateChargingInfo() {
-            const currentChargingHours = chargingSchedule[currentDay];
+        // Initialization
+        function init() {
+            console.log('🚀 Initializing Tesla Dashboard...');
             
-            if (currentChargingHours.length > 0) {
-                const chargingPrice = priceData[currentChargingHours[0]];
-                document.getElementById('currentPrice').textContent = 
-                    chargingPrice.toFixed(2).replace('.', ',');
-                document.getElementById('chargingTime').textContent = 
-                    `${currentChargingHours[0].toString().padStart(2, '0')}.00-${(currentChargingHours[currentChargingHours.length-1] + 1).toString().padStart(2, '0')}.00`;
-            } else {
-                document.getElementById('currentPrice').textContent = '--';
-                document.getElementById('chargingTime').textContent = 'Ingen ladning planlagt';
+            // Update date display
+            updateDateDisplay(currentDay);
+            
+            // Generate initial chart with fallback data
+            generateChart();
+            updateStats();
+            
+            // Load token and try to connect to Homey
+            if (loadToken()) {
+                fetchHomeyData();
             }
+            
+            console.log('✅ Dashboard initialized');
         }
         
-        // Initialize the dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('Tesla Dashboard initialized');
-            
-            // Initial setup
-            switchDay('today');
-            
-            // Try to fetch real data immediately
-            fetchHomeyData();
-            
-            // Auto-refresh data periodically
-            setInterval(fetchHomeyData, CONFIG.refreshInterval);
-            
-            // Handle visibility change (pause when hidden)
-            document.addEventListener('visibilitychange', function() {
-                if (!document.hidden) {
+        // Start the app when page loads
+        document.addEventListener('DOMContentLoaded', init);
+        
+        // Handle page visibility changes (pause/resume when tab is hidden/visible)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                // Page is hidden, stop auto-refresh to save battery
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                    console.log('⏸️ Auto-refresh paused (tab hidden)');
+                }
+            } else {
+                // Page is visible again, resume auto-refresh if we have a token
+                if (homeyToken && !refreshTimer) {
+                    refreshTimer = setInterval(fetchHomeyData, CONFIG.refreshInterval);
+                    console.log('▶️ Auto-refresh resumed (tab visible)');
+                    // Also fetch data immediately
                     fetchHomeyData();
                 }
-            });
+            }
         });
-        
-        // Service Worker registration for PWA features
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js')
-                    .then(function(registration) {
-                        console.log('SW registered: ', registration);
-                    })
-                    .catch(function(registrationError) {
-                        console.log('SW registration failed: ', registrationError);
-                    });
-            });
-        }
     </script>
 </body>
 </html>
