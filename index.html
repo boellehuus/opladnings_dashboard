@@ -573,6 +573,46 @@
         
         let priceData = fallbackData[currentDay];
         
+        // UI helper functions
+        function showLoading(show) {
+            const loading = document.getElementById('loadingIndicator');
+            if (show) {
+                loading.classList.add('show');
+            } else {
+                loading.classList.remove('show');
+            }
+        }
+        
+        function showError(message) {
+            const error = document.getElementById('errorMessage');
+            error.textContent = message;
+            error.classList.add('show');
+        }
+        
+        function hideError() {
+            const error = document.getElementById('errorMessage');
+            error.classList.remove('show');
+        }
+        
+        function updateChargingDisplay(schedule) {
+            document.getElementById('chargingTime').textContent = schedule;
+        }
+        
+        function updateCurrentPrice(price) {
+            document.getElementById('currentPrice').textContent = 
+                parseFloat(price).toFixed(2).replace('.', ',');
+        }
+        
+        function updateTotalCost(cost) {
+            document.getElementById('totalCost').textContent = 
+                parseFloat(cost).toFixed(2).replace('.', ',') + ' kr';
+        }
+        
+        function updatekWhNeed(kWh) {
+            document.getElementById('kWhNeed').textContent = 
+                parseFloat(kWh).toFixed(2).replace('.', ',') + ' kWh';
+        }
+        
         // Data fetching functions
         async function fetchTeslaData() {
             try {
@@ -797,57 +837,6 @@
             
             console.log('📊 Price chart generated with updated color thresholds');
             console.log(`🎨 Colors: Green < ${CONFIG.priceThresholds.green}, Orange < ${CONFIG.priceThresholds.orange}, Red < ${CONFIG.priceThresholds.red}, Purple >= ${CONFIG.priceThresholds.red}`);
-        }', ',');
-        }
-        
-        function updateTotalCost(cost) {
-            document.getElementById('totalCost').textContent = 
-                parseFloat(cost).toFixed(2).replace('.', ',') + ' kr';
-        }
-        
-        function updatekWhNeed(kWh) {
-            document.getElementById('kWhNeed').textContent = 
-                parseFloat(kWh).toFixed(2).replace('.', ',') + ' kWh';
-        }
-        
-        // Chart generation
-        function generateChart() {
-            const chart = document.getElementById('priceChart');
-            chart.innerHTML = '';
-            
-            const maxPrice = Math.max(...priceData);
-            const currentChargingHours = chargingSchedule[currentDay];
-            
-            priceData.forEach((price, index) => {
-                const bar = document.createElement('div');
-                bar.className = 'bar';
-                
-                const height = Math.max((price / maxPrice) * 100, 8);
-                bar.style.height = height + '%';
-                
-                // Create tooltip
-                const tooltip = document.createElement('div');
-                tooltip.className = 'tooltip';
-                tooltip.textContent = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
-                bar.appendChild(tooltip);
-                
-                // Apply styling based on charging status and price
-                if (currentChargingHours.includes(index)) {
-                    bar.classList.add('charging');
-                } else {
-                    if (price < 1.5) {
-                        bar.classList.add('green');
-                    } else if (price < 2.0) {
-                        bar.classList.add('orange');
-                    } else if (price < 2.5) {
-                        bar.classList.add('red');
-                    } else {
-                        bar.classList.add('purple');
-                    }
-                }
-                
-                chart.appendChild(bar);
-            });
         }
         
         function updateStats() {
