@@ -50,18 +50,41 @@
         .header {
             text-align: center;
             margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
         }
         
         .date {
             font-size: 19px;
             font-weight: 300;
-            margin-bottom: 8px;
             opacity: 0.95;
+            flex: 1;
+        }
+        
+        .header-status {
+            font-size: 11px;
+            color: #bdc3c7;
+            text-align: right;
+            flex: 0 0 auto;
+            margin-left: 10px;
+            white-space: nowrap;
         }
         
         @media (max-width: 480px) {
             .date {
                 font-size: 16px;
+            }
+            
+            .header {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .header-status {
+                text-align: center;
+                margin-left: 0;
             }
         }
         
@@ -106,6 +129,24 @@
             border-radius: 12px;
             padding: 10px;
             border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .current-time-arrow {
+            position: absolute;
+            top: -5px;
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 8px solid white;
+            z-index: 10;
+            opacity: 0.9;
+            animation: pulse-arrow 2s infinite;
+        }
+        
+        @keyframes pulse-arrow {
+            0%, 100% { opacity: 0.9; }
+            50% { opacity: 0.6; }
         }
         
         .chart {
@@ -161,6 +202,13 @@
         .bar.purple {
             background: linear-gradient(to top, #8e44ad, #9b59b6);
         }
+        
+        /* Price color thresholds updated:
+         * Green: < 2.5 kr/kWh (good prices)
+         * Orange: >= 2.5 kr/kWh (expensive prices)
+         * Red: >= 3.0 kr/kWh (very expensive)
+         * Purple: >= 3.5 kr/kWh (extremely expensive)
+         */
         
         .time-labels {
             display: flex;
@@ -317,13 +365,7 @@
         }
         
         .connection-status {
-            font-size: 12px;
-            color: #bdc3c7;
-            text-align: center;
-            margin-bottom: 15px;
-            padding: 6px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
+            display: none; /* Hidden - now shown in header */
         }
         
         .status-indicator {
@@ -387,14 +429,18 @@
             Henter Tesla data...
         </div>
         
-        <!-- Connection Status -->
-        <div class="connection-status" id="connectionStatus">
+        <!-- Connection Status - now hidden, info shown in header -->
+        <div class="connection-status" id="connectionStatus" style="display: none;">
             <span class="status-indicator" id="statusIndicator"></span>
             <span id="statusText">Starter...</span>
         </div>
         
         <div class="header">
             <div class="date" id="currentDate">Torsdag d. 29. maj</div>
+            <div class="header-status" id="headerStatus">
+                <span class="status-indicator" id="headerStatusIndicator"></span>
+                <span id="headerStatusText">Starter...</span>
+            </div>
         </div>
         
         <div class="time-selector">
@@ -445,21 +491,60 @@
     </div>
 
     <script>
+        /* 
+         * TESLA CHARGING DASHBOARD - HOMEY INTEGRATION
+         * ============================================
+         * 
+         * 🎯 PURPOSE: 
+         * Display Tesla charging schedule and electricity prices in Homey iOS Dashboard widget
+         * 
+         * 🏗️ DATA FLOW ARCHITECTURE:
+         * 1. HomeyScript (runs every 15 min) → reads Tesla Logic Variables from Homey Pro
+         * 2. HomeyScript → fetches electricity prices from BilligkWh API 
+         * 3. HomeyScript → uploads combined data to GitHub Gist (JSON webhook)
+         * 4. HTML Dashboard → fetches JSON from Gist every 1 minute
+         * 5. Dashboard → displays real-time Tesla data and price visualization
+         * 
+         * 📊 DATA SOURCES:
+         * - Tesla variables: Tesla_compact_schedule, Tesla_optimal_price, Tesla_total_cost, etc.
+         * - Electricity prices: 24-hour array from BilligkWh API (DK1 region)
+         * - Current time: Copenhagen timezone for time arrow positioning
+         * 
+         * 🔄 WEBHOOK MECHANISM:
+         * - GitHub Gist acts as webhook endpoint - HomeyScript PATCHes data
+         * - Dashboard polls Gist raw URL for updates (avoids CORS issues)
+         * - Cache busting with timestamp parameter prevents stale data
+         * 
+         * 🎨 UI FEATURES:
+         * - Real-time price chart with color coding (green < 2.5 kr/kWh, orange >= 2.5)
+         * - Current time arrow indicator on chart
+         * - Charging hours highlighted with animated pattern
+         * - Compact layout with status in header to reduce height
+         * - Auto-refresh with battery optimization (pauses when hidden)
+         */
+        
         // Configuration
         const CONFIG = {
-            refreshInterval: 60000, // 1 minute 
+            refreshInterval: 60000, // 1 minute - matches HomeyScript update frequency
             retryAttempts: 3,
             retryDelay: 2000,
-            // Your Gist data URL (working perfectly!)
-            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json'
+            // GitHub Gist webhook URL - receives data from HomeyScript every 15 minutes
+            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json',
+            // Price color thresholds (kr/kWh)
+            priceThresholds: {
+                green: 2.5,    // < 2.5 = green (good prices)
+                orange: 3.0,   // 2.5-3.0 = orange (expensive)
+                red: 3.5       // 3.0-3.5 = red, > 3.5 = purple (very expensive)
+            }
         };
         
-        // Global state
+        // Global state management
         let currentDay = 'today';
         let retryCount = 0;
         let hasHomeyData = false;
         let refreshTimer = null;
         let lastDataUpdate = null;
+        let currentTimeArrow = null; // Reference to time arrow element
         
         // Fallback data (matches your real price data pattern)
         const fallbackData = {
@@ -638,41 +723,81 @@
             }
         }
         
-        // UI Update Functions
+        /**
+         * CONNECTION STATUS MANAGER
+         * Updates status display in header (replaces old standalone status box)
+         */
         function updateConnectionStatus(status, message) {
-            const indicator = document.getElementById('statusIndicator');
-            const text = document.getElementById('statusText');
+            // Update both old and new status indicators for compatibility
+            const indicators = ['statusIndicator', 'headerStatusIndicator'];
+            const texts = ['statusText', 'headerStatusText'];
             
-            indicator.className = 'status-indicator';
-            if (status === 'connected') {
-                indicator.classList.add('connected');
-            }
+            indicators.forEach(id => {
+                const indicator = document.getElementById(id);
+                if (indicator) {
+                    indicator.className = 'status-indicator';
+                    if (status === 'connected') {
+                        indicator.classList.add('connected');
+                    }
+                }
+            });
             
-            text.textContent = message;
+            texts.forEach(id => {
+                const text = document.getElementById(id);
+                if (text) {
+                    text.textContent = message;
+                }
+            });
         }
         
-        function showLoading(show) {
-            document.getElementById('loadingIndicator').classList.toggle('show', show);
-        }
-        
-        function showError(message) {
-            const errorEl = document.getElementById('errorMessage');
-            errorEl.textContent = message;
-            errorEl.classList.add('show');
-            setTimeout(() => errorEl.classList.remove('show'), 5000);
-        }
-        
-        function hideError() {
-            document.getElementById('errorMessage').classList.remove('show');
-        }
-        
-        function updateChargingDisplay(schedule) {
-            document.getElementById('chargingTime').textContent = schedule;
-        }
-        
-        function updateCurrentPrice(price) {
-            document.getElementById('currentPrice').textContent = 
-                parseFloat(price).toFixed(2).replace('.', ',');
+        /**
+         * PRICE CHART GENERATOR
+         * Creates hourly price bars with updated color thresholds and current time arrow
+         * Color coding: Green < 2.5, Orange 2.5-3.0, Red 3.0-3.5, Purple > 3.5 kr/kWh
+         */
+        function generateChart() {
+            const chart = document.getElementById('priceChart');
+            chart.innerHTML = '';
+            
+            const maxPrice = Math.max(...priceData);
+            const currentChargingHours = chargingSchedule[currentDay];
+            
+            priceData.forEach((price, index) => {
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                
+                const height = Math.max((price / maxPrice) * 100, 8);
+                bar.style.height = height + '%';
+                
+                // Create hover tooltip
+                const tooltip = document.createElement('div');
+                tooltip.className = 'tooltip';
+                tooltip.textContent = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
+                bar.appendChild(tooltip);
+                
+                // Apply color coding based on charging status and price thresholds
+                if (currentChargingHours.includes(index)) {
+                    // Charging hours get special animated pattern
+                    bar.classList.add('charging');
+                } else {
+                    // Updated price color thresholds
+                    if (price < CONFIG.priceThresholds.green) {        // < 2.5 kr/kWh
+                        bar.classList.add('green');
+                    } else if (price < CONFIG.priceThresholds.orange) { // 2.5-3.0 kr/kWh  
+                        bar.classList.add('orange');
+                    } else if (price < CONFIG.priceThresholds.red) {    // 3.0-3.5 kr/kWh
+                        bar.classList.add('red');
+                    } else {                                            // > 3.5 kr/kWh
+                        bar.classList.add('purple');
+                    }
+                }
+                
+                chart.appendChild(bar);
+            });
+            
+            console.log('📊 Price chart generated with updated color thresholds');
+            console.log(`🎨 Colors: Green < ${CONFIG.priceThresholds.green}, Orange < ${CONFIG.priceThresholds.orange}, Red < ${CONFIG.priceThresholds.red}, Purple >= ${CONFIG.priceThresholds.red}`);
+        }', ',');
         }
         
         function updateTotalCost(cost) {
