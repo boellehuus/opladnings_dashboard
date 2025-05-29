@@ -13,11 +13,11 @@
         let hasHomeyData = false;
         let homeyApi = null;
         
-        // Cloud API setup
+        // Cloud API setup with official test credentials
         const cloudApi = new window.AthomCloudAPI({
             clientId: '5a8d4ca6eb9f7a2c9d6ccf6d',
             clientSecret: 'e3ace394af9f615857ceaa61b053f966ddcfb12a',
-            redirectUrl: window.location.origin
+            redirectUrl: window.location.origin // GitHub Pages URL
         });
         
         // Sample data as fallback
