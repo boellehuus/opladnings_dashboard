@@ -1,24 +1,425 @@
-<script src="https://cdn.athom.com/homey-api/3.11.3.js"></script>
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>Tesla Ladeplan</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: white;
+            min-height: 100vh;
+            padding: 10px;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        .container {
+            max-width: 100%;
+            width: 400px;
+            margin: 0 auto;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 20px;
+            padding: 20px 15px;
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                width: 100%;
+                padding: 15px 12px;
+                border-radius: 15px;
+            }
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .date {
+            font-size: 19px;
+            font-weight: 300;
+            margin-bottom: 8px;
+            opacity: 0.95;
+        }
+        
+        @media (max-width: 480px) {
+            .date {
+                font-size: 16px;
+            }
+        }
+        
+        .time-selector {
+            display: flex;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 4px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .time-option {
+            flex: 1;
+            text-align: center;
+            padding: 10px 8px;
+            border-radius: 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        
+        .time-option:active {
+            transform: scale(0.95);
+        }
+        
+        .time-option.active {
+            background: linear-gradient(135deg, #8e44ad, #9b59b6);
+            color: white;
+            box-shadow: 0 4px 12px rgba(142, 68, 173, 0.4);
+            transform: translateY(-1px);
+        }
+        
+        .chart-container {
+            height: 115px;
+            margin-bottom: 20px;
+            position: relative;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        
+        .chart {
+            display: flex;
+            align-items: end;
+            height: 100%;
+            padding: 5px 0;
+            gap: 1px;
+        }
+        
+        .bar {
+            flex: 1;
+            border-radius: 3px 3px 0 0;
+            transition: all 0.2s ease;
+            position: relative;
+            cursor: pointer;
+            min-height: 8px;
+        }
+        
+        .bar:hover {
+            transform: translateY(-2px);
+            filter: brightness(1.1);
+        }
+        
+        .bar:active {
+            transform: translateY(-1px);
+        }
+        
+        .bar.charging {
+            background: repeating-linear-gradient(
+                45deg,
+                #ffffff,
+                #ffffff 4px,
+                rgba(255, 255, 255, 0.3) 4px,
+                rgba(255, 255, 255, 0.3) 8px
+            );
+            box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+        }
+        
+        .bar.green {
+            background: linear-gradient(to top, #27ae60, #2ecc71);
+        }
+        
+        .bar.orange {
+            background: linear-gradient(to top, #f39c12, #e67e22);
+        }
+        
+        .bar.red {
+            background: linear-gradient(to top, #e74c3c, #c0392b);
+        }
+        
+        .bar.purple {
+            background: linear-gradient(to top, #8e44ad, #9b59b6);
+        }
+        
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 11px;
+            color: #7f8c8d;
+            padding: 0 2px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .bar:hover .tooltip {
+            opacity: 1;
+        }
+        
+        .info-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .info-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.2s ease;
+            min-height: 56px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        
+        .info-card:hover {
+            transform: translateY(-2px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-card .time {
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        
+        .info-card .price-large {
+            font-size: 24px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .info-card .unit {
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-top: 2px;
+        }
+        
+        .info-card .time-range {
+            font-size: 12px;
+            color: #bdc3c7;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        
+        .info-card .price-with-unit {
+            font-size: 24px;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 2px;
+        }
+        
+        .info-card .price-unit {
+            font-size: 12px;
+            color: #bdc3c7;
+        }
+        
+        .summary-card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: transform 0.2s ease;
+        }
+        
+        .summary-card:hover {
+            transform: translateY(-1px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .summary-title {
+            font-size: 17px;
+            color: #bdc3c7;
+            margin-bottom: 8px;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .summary-price {
+            font-size: 20px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .loading-indicator {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #bdc3c7;
+            font-size: 14px;
+        }
+        
+        .loading-indicator.show {
+            display: block;
+        }
+        
+        .error-message {
+            display: none;
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        /* Web app specific optimizations */
+        @media (display-mode: standalone) {
+            body {
+                padding-top: 20px;
+            }
+        }
+        
+        /* High DPI displays */
+        @media (-webkit-min-device-pixel-ratio: 2) {
+            .container {
+                border-width: 0.5px;
+            }
+            
+            .info-card,
+            .summary-card,
+            .chart-container {
+                border-width: 0.5px;
+            }
+        }
+        
+        /* Reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-message" id="errorMessage">
+            Kunne ikke hente data fra Homey
+        </div>
+        
+        <div class="loading-indicator" id="loadingIndicator">
+            Henter data...
+        </div>
+        
+        <div class="header">
+            <div class="date" id="currentDate">Torsdag d. 29. maj</div>
+        </div>
+        
+        <div class="time-selector">
+            <div class="time-option" onclick="switchDay('yesterday')">I går</div>
+            <div class="time-option active" onclick="switchDay('today')">I dag</div>
+            <div class="time-option" onclick="switchDay('tomorrow')">I morgen</div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart" id="priceChart">
+                <!-- Chart bars will be generated here -->
+            </div>
+            <div class="time-labels">
+                <span>00</span>
+                <span>06</span>
+                <span>12</span>
+                <span>18</span>
+                <span>24</span>
+            </div>
+        </div>
+        
+        <div class="info-cards">
+            <div class="info-card">
+                <div class="time">Billigste</div>
+                <div class="price-large" id="cheapestPrice">1,18</div>
+                <div class="unit">kr.</div>
+            </div>
+            <div class="info-card">
+                <div class="time-range" id="chargingTime">10.00-12.00</div>
+                <div class="price-with-unit" id="currentPrice">1,19</div>
+                <div class="price-unit">kr/kWh</div>
+            </div>
+            <div class="info-card">
+                <div class="time">Dyreste</div>
+                <div class="price-large" id="highestPrice">2,07</div>
+                <div class="unit">kr.</div>
+            </div>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-title">Ladeinfo</div>
+            <div class="summary-price">
+                <span id="kWhNeed">15,47 kWh</span>
+                <span style="margin: 0 8px; color: #7f8c8d;">|</span>
+                <span id="totalCost">18,41 kr</span>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Configuration
         const CONFIG = {
-            refreshInterval: 300000, // 5 minutes for cloud API
+            refreshInterval: 60000, // 1 minute
+            homeyApiUrl: '/api/homey', // Local Homey API endpoint
             retryAttempts: 3,
-            retryDelay: 5000
+            retryDelay: 2000
         };
         
         // Global state
         let currentDay = 'today';
         let retryCount = 0;
         let hasHomeyData = false;
-        let homeyApi = null;
-        
-        // Cloud API setup with official test credentials
-        const cloudApi = new window.AthomCloudAPI({
-            clientId: '5a8d4ca6eb9f7a2c9d6ccf6d',
-            clientSecret: 'e3ace394af9f615857ceaa61b053f966ddcfb12a',
-            redirectUrl: window.location.origin // GitHub Pages URL
-        });
         
         // Sample data as fallback
         const fallbackData = {
@@ -47,101 +448,53 @@
         
         let priceData = fallbackData[currentDay];
         
-        // Initialize Homey Cloud API
-        async function initHomeyAPI() {
-            try {
-                showLoading(true);
-                console.log('Initializing Homey Cloud API...');
-                
-                const loggedIn = await cloudApi.isLoggedIn();
-                console.log('Logged in status:', loggedIn);
-                
-                if (!loggedIn) {
-                    if (cloudApi.hasAuthorizationCode()) {
-                        console.log('Found authorization code, authenticating...');
-                        await cloudApi.authenticateWithAuthorizationCode();
-                    } else {
-                        console.log('Redirecting to login...');
-                        window.location.href = cloudApi.getLoginUrl();
-                        return;
-                    }
-                }
-                
-                const user = await cloudApi.getAuthenticatedUser();
-                console.log('Got user:', user.id);
-                
-                const homey = await user.getFirstHomey();
-                console.log('Got Homey:', homey.id);
-                
-                homeyApi = await homey.authenticate();
-                console.log('Homey API authenticated successfully');
-                
-                // Test connection
-                const variables = await homeyApi.logic.getVariables();
-                console.log('Found', Object.keys(variables).length, 'variables');
-                
-                return true;
-                
-            } catch (error) {
-                console.error('Failed to initialize Homey API:', error);
-                showError('Kunne ikke forbinde til Homey Cloud. Viser demo data.');
-                return false;
-            }
-        }
-        
-        // Fetch data from Homey
+        // Homey API Integration
         async function fetchHomeyData() {
-            if (!homeyApi) {
-                console.log('No Homey API, trying to initialize...');
-                const success = await initHomeyAPI();
-                if (!success) {
-                    handleFetchError(new Error('No Homey API connection'));
-                    return;
-                }
-            }
-            
             try {
                 showLoading(true);
                 hideError();
                 
-                console.log('Fetching Tesla variables...');
-                
-                // Get all variables first
-                const allVariables = await homeyApi.logic.getVariables();
-                
-                // Find Tesla variables
-                const teslaVars = {};
-                const targetVars = [
-                    'Tesla_compact_schedule',
-                    'Tesla_optimal_price',
-                    'Tesla_total_cost',
-                    'Tesla_kWh_needed',
-                    'Tesla_charging_hours'
-                ];
-                
-                for (const [id, variable] of Object.entries(allVariables)) {
-                    if (targetVars.includes(variable.name)) {
-                        teslaVars[variable.name] = variable.value;
-                        console.log(`Found ${variable.name}:`, variable.value);
-                    }
-                }
+                // Fetch Tesla variables from Homey
+                const variables = await Promise.all([
+                    fetchHomeyVariable('Tesla_compact_schedule'),
+                    fetchHomeyVariable('Tesla_optimal_price'),
+                    fetchHomeyVariable('Tesla_total_cost'),
+                    fetchHomeyVariable('Tesla_kWh_needed'),
+                    fetchHomeyVariable('Tesla_charging_hours')
+                ]);
                 
                 // Update UI with real data
-                if (teslaVars.Tesla_compact_schedule) updateChargingDisplay(teslaVars.Tesla_compact_schedule);
-                if (teslaVars.Tesla_optimal_price) updateCurrentPrice(teslaVars.Tesla_optimal_price);
-                if (teslaVars.Tesla_total_cost) updateTotalCost(teslaVars.Tesla_total_cost);
-                if (teslaVars.Tesla_kWh_needed) updatekWhNeed(teslaVars.Tesla_kWh_needed);
+                if (variables[0]) updateChargingDisplay(variables[0]);
+                if (variables[1]) updateCurrentPrice(variables[1]);
+                if (variables[2]) updateTotalCost(variables[2]);
+                if (variables[3]) updatekWhNeed(variables[3]);
                 
                 hasHomeyData = true;
                 retryCount = 0;
                 showLoading(false);
                 
-                console.log('Successfully fetched data from Homey Cloud');
+                console.log('Successfully fetched data from Homey');
                 
             } catch (error) {
                 console.error('Error fetching Homey data:', error);
                 handleFetchError(error);
             }
+        }
+        
+        async function fetchHomeyVariable(variableName) {
+            const response = await fetch(`/api/manager/logic/variable/${variableName}`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data.value;
         }
         
         function handleFetchError(error) {
@@ -160,6 +513,7 @@
         
         function showLoading(show) {
             const indicator = document.getElementById('loadingIndicator');
+            // Only show loading if we don't have Homey data yet
             if (!hasHomeyData) {
                 indicator.classList.toggle('show', show);
             } else {
@@ -254,12 +608,22 @@
             });
             
             const buttons = document.querySelectorAll('.time-option');
-            if (day === 'yesterday') {
-                buttons[0].classList.add('active');
-            } else if (day === 'today') {
-                buttons[1].classList.add('active');
-            } else if (day === 'tomorrow') {
-                buttons[2].classList.add('active');
+            console.log('Found buttons:', buttons.length); // Debug info
+            
+            if (buttons.length >= 3) {
+                if (day === 'yesterday') {
+                    buttons[0].classList.add('active');
+                } else if (day === 'today') {
+                    buttons[1].classList.add('active');
+                } else if (day === 'tomorrow') {
+                    buttons[2].classList.add('active');
+                }
+            } else {
+                console.error('Expected 3 time-option buttons, found:', buttons.length);
+                // Fallback: just add active to first button
+                if (buttons.length > 0) {
+                    buttons[0].classList.add('active');
+                }
             }
             
             // Update current day and price data
@@ -313,25 +677,37 @@
         
         // Initialize the dashboard
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Tesla Dashboard initialized for Homey iOS Widget');
+            console.log('Tesla Dashboard initialized');
             
             // Initial setup
             switchDay('today');
             
-            // Try to connect to Homey Cloud
-            initHomeyAPI().then(success => {
-                if (success) {
-                    fetchHomeyData();
-                    // Auto-refresh data periodically (less frequent for cloud)
-                    setInterval(fetchHomeyData, CONFIG.refreshInterval);
-                }
-            });
+            // Try to fetch real data immediately
+            fetchHomeyData();
             
-            // Handle visibility change
+            // Auto-refresh data periodically
+            setInterval(fetchHomeyData, CONFIG.refreshInterval);
+            
+            // Handle visibility change (pause when hidden)
             document.addEventListener('visibilitychange', function() {
-                if (!document.hidden && homeyApi) {
+                if (!document.hidden) {
                     fetchHomeyData();
                 }
             });
         });
+        
+        // Service Worker registration for PWA features
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(function(registrationError) {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
     </script>
+</body>
+</html>
