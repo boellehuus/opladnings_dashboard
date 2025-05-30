@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>Tesla Ladeplan</title>
+    <title>Elbil Ladeplan</title>
     <style>
         * {
             margin: 0;
@@ -16,11 +16,11 @@
         }
         
         body {
-            background: linear-gradient(135deg, #2c3e50 0%, #34495e 50%, #2c3e50 100%);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            color: white;
+            background: #f5f5f7;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial, sans-serif;
+            color: #1d1d1f;
             min-height: 100vh;
-            padding: 10px;
+            padding: 12px;
             overflow-x: hidden;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
@@ -28,331 +28,28 @@
         
         .container {
             max-width: 100%;
-            width: 400px;
+            width: 380px;
             margin: 0 auto;
-            background: rgba(0, 0, 0, 0.25);
-            border-radius: 20px;
-            padding: 20px 15px;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e5e5e7;
         }
         
         @media (max-width: 480px) {
             .container {
                 width: 100%;
-                padding: 15px 12px;
-                border-radius: 15px;
+                padding: 14px;
+                border-radius: 12px;
             }
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .date {
-            font-size: 19px;
-            font-weight: 300;
-            opacity: 0.95;
-            flex: 1;
-        }
-        
-        .header-status {
-            font-size: 11px;
-            color: #bdc3c7;
-            text-align: right;
-            flex: 0 0 auto;
-            margin-left: 10px;
-            white-space: nowrap;
-        }
-        
-        @media (max-width: 480px) {
-            .date {
-                font-size: 16px;
-            }
-            
-            .header {
-                flex-direction: column;
-                gap: 5px;
-            }
-            
-            .header-status {
-                text-align: center;
-                margin-left: 0;
-            }
-        }
-        
-        .time-selector {
-            display: flex;
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 20px;
-            padding: 4px;
-            margin-bottom: 20px;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .time-option {
-            flex: 1;
-            text-align: center;
-            padding: 10px 8px;
-            border-radius: 16px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            user-select: none;
-            -webkit-user-select: none;
-            touch-action: manipulation;
-        }
-        
-        .time-option:active {
-            transform: scale(0.95);
-        }
-        
-        .time-option.active {
-            background: linear-gradient(135deg, #8e44ad, #9b59b6);
-            color: white;
-            box-shadow: 0 4px 12px rgba(142, 68, 173, 0.4);
-            transform: translateY(-1px);
-        }
-        
-        .chart-container {
-            height: 115px;
-            margin-bottom: 20px;
-            position: relative;
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        
-        .current-time-arrow {
-            position: absolute;
-            top: -5px;
-            width: 0;
-            height: 0;
-            border-left: 6px solid transparent;
-            border-right: 6px solid transparent;
-            border-top: 8px solid white;
-            z-index: 10;
-            opacity: 0.9;
-            animation: pulse-arrow 2s infinite;
-        }
-        
-        @keyframes pulse-arrow {
-            0%, 100% { opacity: 0.9; }
-            50% { opacity: 0.6; }
-        }
-        
-        .chart {
-            display: flex;
-            align-items: end;
-            height: 100%;
-            padding: 5px 0;
-            gap: 1px;
-        }
-        
-        .bar {
-            flex: 1;
-            border-radius: 3px 3px 0 0;
-            transition: all 0.2s ease;
-            position: relative;
-            cursor: pointer;
-            min-height: 8px;
-        }
-        
-        .bar:hover {
-            transform: translateY(-2px);
-            filter: brightness(1.1);
-        }
-        
-        .bar:active {
-            transform: translateY(-1px);
-        }
-        
-        .bar.charging {
-            background: repeating-linear-gradient(
-                45deg,
-                #ffffff,
-                #ffffff 4px,
-                rgba(255, 255, 255, 0.3) 4px,
-                rgba(255, 255, 255, 0.3) 8px
-            );
-            box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
-            border: 2px solid rgba(255, 255, 255, 0.8);
-        }
-        
-        .bar.green {
-            background: linear-gradient(to top, #27ae60, #2ecc71);
-        }
-        
-        .bar.orange {
-            background: linear-gradient(to top, #f39c12, #e67e22);
-        }
-        
-        .bar.red {
-            background: linear-gradient(to top, #e74c3c, #c0392b);
-        }
-        
-        .bar.purple {
-            background: linear-gradient(to top, #8e44ad, #9b59b6);
-        }
-        
-        /* Price color thresholds updated:
-         * Green: < 2.5 kr/kWh (good prices)
-         * Orange: >= 2.5 kr/kWh (expensive prices)
-         * Red: >= 3.0 kr/kWh (very expensive)
-         * Purple: >= 3.5 kr/kWh (extremely expensive)
-         */
-        
-        .time-labels {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 8px;
-            font-size: 11px;
-            color: #7f8c8d;
-            padding: 0 2px;
-        }
-        
-        .tooltip {
-            position: absolute;
-            bottom: calc(100% + 8px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.9);
-            color: white;
-            padding: 6px 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            white-space: nowrap;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease;
-            z-index: 100;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .bar:hover .tooltip {
-            opacity: 1;
-        }
-        
-        .info-cards {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-            margin-bottom: 20px;
-        }
-        
-        .info-card {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: transform 0.2s ease;
-            min-height: 56px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-        }
-        
-        .info-card:hover {
-            transform: translateY(-2px);
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        .info-card .time {
-            font-size: 12px;
-            color: #bdc3c7;
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
-        
-        .info-card .price-large {
-            font-size: 24px;
-            font-weight: 600;
-            color: white;
-        }
-        
-        .info-card .unit {
-            font-size: 12px;
-            color: #bdc3c7;
-            margin-top: 2px;
-        }
-        
-        .info-card .time-range {
-            font-size: 12px;
-            color: #bdc3c7;
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
-        
-        .info-card .price-with-unit {
-            font-size: 24px;
-            font-weight: 600;
-            color: white;
-            margin-bottom: 2px;
-        }
-        
-        .info-card .price-unit {
-            font-size: 12px;
-            color: #bdc3c7;
-        }
-        
-        .summary-card {
-            background: rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            transition: transform 0.2s ease;
-        }
-        
-        .summary-card:hover {
-            transform: translateY(-1px);
-            background: rgba(255, 255, 255, 0.1);
-        }
-        
-        .summary-title {
-            font-size: 17px;
-            color: #bdc3c7;
-            margin-bottom: 8px;
-            font-weight: 500;
-            text-align: center;
-        }
-        
-        .summary-price {
-            font-size: 20px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        .loading-indicator {
-            display: none;
-            text-align: center;
-            padding: 20px;
-            color: #bdc3c7;
-            font-size: 14px;
-        }
-        
-        .loading-indicator.show {
-            display: block;
         }
         
         .error-message {
             display: none;
-            background: rgba(231, 76, 60, 0.1);
-            border: 1px solid rgba(231, 76, 60, 0.3);
-            color: #e74c3c;
+            background: #fff2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
             padding: 12px;
             border-radius: 8px;
             margin-bottom: 15px;
@@ -364,22 +61,278 @@
             display: block;
         }
         
+        .loading-indicator {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #86868b;
+            font-size: 14px;
+        }
+        
+        .loading-indicator.show {
+            display: block;
+        }
+        
+        .time-selector {
+            display: flex;
+            background: #f2f2f7;
+            border-radius: 12px;
+            padding: 3px;
+            margin-bottom: 16px;
+        }
+        
+        .time-option {
+            flex: 1;
+            text-align: center;
+            padding: 8px 12px;
+            border-radius: 9px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            color: #86868b;
+        }
+        
+        .time-option:active {
+            transform: scale(0.96);
+        }
+        
+        .time-option.active {
+            background: white;
+            color: #1d1d1f;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-container {
+            height: 140px;
+            margin-bottom: 16px;
+            position: relative;
+            background: #fafafa;
+            border-radius: 12px;
+            padding: 16px 12px 8px 12px;
+            border: 1px solid #e5e5e7;
+        }
+        
+        .price-grid {
+            position: absolute;
+            top: 16px;
+            left: 12px;
+            right: 12px;
+            bottom: 24px;
+            pointer-events: none;
+        }
+        
+        .price-line {
+            position: absolute;
+            left: 0;
+            right: 0;
+            height: 1px;
+            border-top: 1px dashed #c7c7cc;
+            opacity: 0.6;
+        }
+        
+        .price-label {
+            position: absolute;
+            right: 4px;
+            top: -6px;
+            font-size: 10px;
+            color: #86868b;
+            font-weight: 500;
+        }
+        
+        .current-time-arrow {
+            position: absolute;
+            top: 15px;
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-top: 6px solid #007AFF;
+            z-index: 10;
+            opacity: 0.8;
+            animation: pulse-arrow 2s infinite;
+        }
+        
+        @keyframes pulse-arrow {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.5; }
+        }
+        
+        .chart {
+            display: flex;
+            align-items: end;
+            height: 100px;
+            padding: 0;
+            gap: 1px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .bar {
+            flex: 1;
+            border-radius: 2px 2px 0 0;
+            transition: all 0.2s ease;
+            position: relative;
+            cursor: pointer;
+            min-height: 4px;
+        }
+        
+        .bar:hover {
+            transform: translateY(-1px);
+            filter: brightness(0.9);
+        }
+        
+        .bar:active {
+            transform: translateY(0px);
+        }
+        
+        .bar.charging {
+            background: repeating-linear-gradient(
+                45deg,
+                #30d158,
+                #30d158 4px,
+                rgba(48, 209, 88, 0.4) 4px,
+                rgba(48, 209, 88, 0.4) 8px
+            );
+            box-shadow: 0 0 8px rgba(48, 209, 88, 0.4);
+            border: 1px solid rgba(48, 209, 88, 0.8);
+            animation: charging-pulse 2s infinite;
+        }
+        
+        @keyframes charging-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        
+        .bar.green {
+            background: #30d158;
+        }
+        
+        .bar.green.past {
+            background: #248a3d;
+            opacity: 0.6;
+        }
+        
+        .bar.orange {
+            background: #ff9500;
+        }
+        
+        .bar.orange.past {
+            background: #cc7700;
+            opacity: 0.6;
+        }
+        
+        .bar.red {
+            background: #ff3b30;
+        }
+        
+        .bar.red.past {
+            background: #cc2e26;
+            opacity: 0.6;
+        }
+        
+        .bar.purple {
+            background: #af52de;
+        }
+        
+        .bar.purple.past {
+            background: #8c42b1;
+            opacity: 0.6;
+        }
+        
+        .bar.charging.past {
+            background: repeating-linear-gradient(
+                45deg,
+                #248a3d,
+                #248a3d 4px,
+                rgba(36, 138, 61, 0.4) 4px,
+                rgba(36, 138, 61, 0.4) 8px
+            );
+            opacity: 0.6;
+            animation: none;
+        }
+        
+        .time-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 11px;
+            color: #86868b;
+            padding: 0 2px;
+            font-weight: 500;
+        }
+        
+        .tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 100;
+        }
+        
+        .bar:hover .tooltip {
+            opacity: 1;
+        }
+        
+        .summary-card {
+            background: #f2f2f7;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #e5e5e7;
+            text-align: center;
+        }
+        
+        .summary-title {
+            font-size: 15px;
+            color: #86868b;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .summary-price {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            color: #1d1d1f;
+        }
+        
+        .summary-divider {
+            color: #86868b;
+            font-weight: 400;
+        }
+        
+        /* Status indicator for connection (hidden by default) */
         .connection-status {
-            display: none; /* Hidden - now shown in header */
+            display: none;
         }
         
         .status-indicator {
             display: inline-block;
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
-            margin-right: 6px;
-            background: #e74c3c;
+            margin-right: 4px;
+            background: #ff3b30;
             animation: pulse 2s infinite;
         }
         
         .status-indicator.connected {
-            background: #27ae60;
+            background: #30d158;
             animation: none;
         }
         
@@ -389,23 +342,10 @@
             100% { opacity: 1; }
         }
         
-        /* Web app specific optimizations */
+        /* iOS widget optimizations */
         @media (display-mode: standalone) {
             body {
-                padding-top: 20px;
-            }
-        }
-        
-        /* High DPI displays */
-        @media (-webkit-min-device-pixel-ratio: 2) {
-            .container {
-                border-width: 0.5px;
-            }
-            
-            .info-card,
-            .summary-card,
-            .chart-container {
-                border-width: 0.5px;
+                padding-top: 8px;
             }
         }
         
@@ -421,26 +361,14 @@
 </head>
 <body>
     <div class="container">
-        <div class="error-message" id="errorMessage">
-            Kunne ikke hente data
-        </div>
-        
         <div class="loading-indicator" id="loadingIndicator">
             Henter Tesla data...
         </div>
         
-        <!-- Connection Status - now hidden, info shown in header -->
-        <div class="connection-status" id="connectionStatus" style="display: none;">
+        <!-- Hidden connection status -->
+        <div class="connection-status" id="connectionStatus">
             <span class="status-indicator" id="statusIndicator"></span>
             <span id="statusText">Starter...</span>
-        </div>
-        
-        <div class="header">
-            <div class="date" id="currentDate">Torsdag d. 29. maj</div>
-            <div class="header-status" id="headerStatus">
-                <span class="status-indicator" id="headerStatusIndicator"></span>
-                <span id="headerStatusText">Starter...</span>
-            </div>
         </div>
         
         <div class="time-selector">
@@ -450,6 +378,9 @@
         </div>
         
         <div class="chart-container">
+            <div class="price-grid" id="priceGrid">
+                <!-- Price grid lines will be generated here -->
+            </div>
             <div class="chart" id="priceChart">
                 <!-- Chart bars will be generated here -->
             </div>
@@ -462,29 +393,11 @@
             </div>
         </div>
         
-        <div class="info-cards">
-            <div class="info-card">
-                <div class="time">Billigste</div>
-                <div class="price-large" id="cheapestPrice">1,18</div>
-                <div class="unit">kr.</div>
-            </div>
-            <div class="info-card">
-                <div class="time-range" id="chargingTime">10.00-12.00</div>
-                <div class="price-with-unit" id="currentPrice">1,19</div>
-                <div class="price-unit">kr/kWh</div>
-            </div>
-            <div class="info-card">
-                <div class="time">Dyreste</div>
-                <div class="price-large" id="highestPrice">2,07</div>
-                <div class="unit">kr.</div>
-            </div>
-        </div>
-        
         <div class="summary-card">
             <div class="summary-title">Ladeinfo</div>
             <div class="summary-price">
                 <span id="kWhNeed">15,47 kWh</span>
-                <span style="margin: 0 8px; color: #7f8c8d;">|</span>
+                <span class="summary-divider">|</span>
                 <span id="totalCost">18,41 kr</span>
             </div>
         </div>
@@ -492,61 +405,37 @@
 
     <script>
         /* 
-         * TESLA CHARGING DASHBOARD - HOMEY INTEGRATION
-         * ============================================
+         * ELBIL CHARGING DASHBOARD - HOMEY INTEGRATION (Simplified)
+         * =========================================================
          * 
-         * 🎯 PURPOSE: 
-         * Display Tesla charging schedule and electricity prices in Homey iOS Dashboard widget
-         * 
-         * 🏗️ DATA FLOW ARCHITECTURE:
-         * 1. HomeyScript (runs every 15 min) → reads Tesla Logic Variables from Homey Pro
-         * 2. HomeyScript → fetches electricity prices from BilligkWh API 
-         * 3. HomeyScript → uploads combined data to GitHub Gist (JSON webhook)
-         * 4. HTML Dashboard → fetches JSON from Gist every 1 minute
-         * 5. Dashboard → displays real-time Tesla data and price visualization
-         * 
-         * 📊 DATA SOURCES:
-         * - Tesla variables: Tesla_compact_schedule, Tesla_optimal_price, Tesla_total_cost, etc.
-         * - Electricity prices: 24-hour array from BilligkWh API (DK1 region)
-         * - Current time: Copenhagen timezone for time arrow positioning
-         * 
-         * 🔄 WEBHOOK MECHANISM:
-         * - GitHub Gist acts as webhook endpoint - HomeyScript PATCHes data
-         * - Dashboard polls Gist raw URL for updates (avoids CORS issues)
-         * - Cache busting with timestamp parameter prevents stale data
-         * 
-         * 🎨 UI FEATURES:
-         * - Real-time price chart with color coding (green < 2.5 kr/kWh, orange >= 2.5)
-         * - Current time arrow indicator on chart
-         * - Charging hours highlighted with animated pattern
-         * - Compact layout with status in header to reduce height
-         * - Auto-refresh with battery optimization (pauses when hidden)
+         * Simplified version for iOS Dashboard widget
+         * - Removed date header and status
+         * - Removed individual price info cards  
+         * - Kept time selector, chart, and summary
+         * - Homey-inspired clean design
          */
         
         // Configuration
         const CONFIG = {
-            refreshInterval: 60000, // 1 minute - matches HomeyScript update frequency
+            refreshInterval: 60000, // 1 minute
             retryAttempts: 3,
             retryDelay: 2000,
-            // GitHub Gist webhook URL - receives data from HomeyScript every 15 minutes
             dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json',
-            // Price color thresholds (kr/kWh)
             priceThresholds: {
-                green: 2.5,    // < 2.5 = green (good prices)
-                orange: 3.0,   // 2.5-3.0 = orange (expensive)
-                red: 3.5       // 3.0-3.5 = red, > 3.5 = purple (very expensive)
+                green: 2.5,    // < 2.5 = green
+                orange: 3.0,   // 2.5-3.0 = orange  
+                red: 3.5       // 3.0-3.5 = red, > 3.5 = purple
             }
         };
         
-        // Global state management
+        // Global state
         let currentDay = 'today';
         let retryCount = 0;
         let hasHomeyData = false;
         let refreshTimer = null;
         let lastDataUpdate = null;
-        let currentTimeArrow = null; // Reference to time arrow element
         
-        // Fallback data (matches your real price data pattern)
+        // Fallback data
         const fallbackData = {
             yesterday: [
                 1.95, 1.87, 1.82, 1.79, 1.88, 1.94, 2.15, 2.31,
@@ -567,7 +456,7 @@
         
         const chargingSchedule = {
             yesterday: [],
-            today: [14], // Based on your Tesla data: 14:00
+            today: [14], // 14:00
             tomorrow: [14]
         };
         
@@ -584,23 +473,12 @@
         }
         
         function showError(message) {
-            const error = document.getElementById('errorMessage');
-            error.textContent = message;
-            error.classList.add('show');
+            console.error('Error:', message);
+            // Error messages are now only shown in console
         }
         
         function hideError() {
-            const error = document.getElementById('errorMessage');
-            error.classList.remove('show');
-        }
-        
-        function updateChargingDisplay(schedule) {
-            document.getElementById('chargingTime').textContent = schedule;
-        }
-        
-        function updateCurrentPrice(price) {
-            document.getElementById('currentPrice').textContent = 
-                parseFloat(price).toFixed(2).replace('.', ',');
+            // No error display to hide
         }
         
         function updateTotalCost(cost) {
@@ -618,7 +496,7 @@
             try {
                 showLoading(true);
                 hideError();
-                updateConnectionStatus('connecting', 'Henter Tesla data...');
+                updateConnectionStatus('connecting', 'Henter data...');
                 console.log('🔄 Fetching Tesla data from Gist...');
                 
                 const response = await fetch(CONFIG.dataURL + '?t=' + Date.now());
@@ -630,26 +508,22 @@
                 const teslaData = await response.json();
                 console.log('📊 Received Tesla data:', Object.keys(teslaData).length, 'properties');
                 
-                // Validate data structure
                 if (!teslaData._metadata) {
-                    throw new Error('Invalid data format - missing metadata');
+                    throw new Error('Invalid data format');
                 }
                 
-                // Check data freshness
                 const dataAge = Date.now() - new Date(teslaData._metadata.timestamp).getTime();
                 const ageMinutes = Math.floor(dataAge / 60000);
                 
                 console.log(`📅 Data age: ${ageMinutes} minutes`);
-                updateConnectionStatus('connected', `Data: ${ageMinutes} min gammel`);
+                updateConnectionStatus('connected', `OK (${ageMinutes}m)`);
                 
-                // Update UI with real data
                 updateUIWithTeslaData(teslaData);
                 
                 hasHomeyData = true;
                 lastDataUpdate = new Date();
                 retryCount = 0;
                 
-                // Start auto-refresh if not already running
                 if (!refreshTimer) {
                     refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
                     console.log('🔄 Auto-refresh started');
@@ -664,19 +538,7 @@
         }
         
         function updateUIWithTeslaData(teslaData) {
-            console.log('🎨 Updating UI with Tesla data from Homey...');
-            
-            // Update charging schedule display
-            if (teslaData.Tesla_compact_schedule) {
-                updateChargingDisplay(teslaData.Tesla_compact_schedule);
-                console.log('📅 Charging schedule:', teslaData.Tesla_compact_schedule);
-            }
-            
-            // Update optimal price
-            if (teslaData.Tesla_optimal_price) {
-                updateCurrentPrice(teslaData.Tesla_optimal_price);
-                console.log('💰 Optimal price:', teslaData.Tesla_optimal_price, 'kr/kWh');
-            }
+            console.log('🎨 Updating UI with Tesla data...');
             
             // Update total cost
             if (teslaData.Tesla_total_cost) {
@@ -690,50 +552,32 @@
                 console.log('⚡ kWh needed:', teslaData.Tesla_kWh_needed, 'kWh');
             }
             
-            // Update price chart from real data
+            // Update price chart
             if (teslaData.Tesla_price_data && Array.isArray(teslaData.Tesla_price_data)) {
                 if (teslaData.Tesla_price_data.length === 24) {
                     priceData = teslaData.Tesla_price_data;
-                    
-                    // Update charging hours based on optimal start time
                     updateChargingHours(teslaData);
-                    
                     generateChart();
-                    updateStats();
-                    console.log('📊 Updated price chart with real BilligkWh data');
-                    console.log(`💰 Price range: ${Math.min(...priceData).toFixed(2)} - ${Math.max(...priceData).toFixed(2)} kr/kWh`);
+                    console.log('📊 Updated price chart with real data');
                 }
             }
             
-            // Update min/max prices
-            if (teslaData.Tesla_cheapest_price) {
-                document.getElementById('cheapestPrice').textContent = 
-                    parseFloat(teslaData.Tesla_cheapest_price).toFixed(2).replace('.', ',');
-            }
-            
-            if (teslaData.Tesla_highest_price) {
-                document.getElementById('highestPrice').textContent = 
-                    parseFloat(teslaData.Tesla_highest_price).toFixed(2).replace('.', ',');
-            }
-            
-            console.log('✅ UI updated successfully with real Tesla data');
+            console.log('✅ UI updated successfully');
         }
         
         function updateChargingHours(teslaData) {
-            // Parse optimal start time to highlight chart
             if (teslaData.Tesla_optimal_start_time && teslaData.Tesla_charging_hours) {
                 try {
                     const startHour = parseInt(teslaData.Tesla_optimal_start_time.split(':')[0]);
                     const chargingHours = parseInt(teslaData.Tesla_charging_hours);
                     
-                    // Update charging schedule for chart highlighting
                     chargingSchedule[currentDay] = [];
                     for (let i = 0; i < chargingHours; i++) {
                         const hour = (startHour + i) % 24;
                         chargingSchedule[currentDay].push(hour);
                     }
                     
-                    console.log('⚡ Charging hours for chart:', chargingSchedule[currentDay]);
+                    console.log('⚡ Charging hours:', chargingSchedule[currentDay]);
                 } catch (error) {
                     console.log('⚠️ Could not parse charging hours:', error);
                 }
@@ -743,114 +587,142 @@
         function handleFetchError(error) {
             retryCount++;
             
-            if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-                showError('❌ Kan ikke hente data. Tjek internet forbindelse');
-                updateConnectionStatus('disconnected', 'Netværk fejl');
+            if (error.message.includes('Failed to fetch')) {
+                showError('Ingen internetforbindelse');
+                updateConnectionStatus('disconnected', 'Offline');
             } else if (error.message.includes('404')) {
-                showError('❌ Data ikke fundet. Tjek Gist URL');
-                updateConnectionStatus('disconnected', 'Data ikke fundet');
+                showError('Data ikke fundet');
+                updateConnectionStatus('disconnected', 'Fejl');
             } else {
-                showError(`❌ Fejl: ${error.message}`);
-                updateConnectionStatus('disconnected', 'Data fejl');
+                showError('Datafejl');
+                updateConnectionStatus('disconnected', 'Fejl');
             }
             
             if (retryCount <= CONFIG.retryAttempts) {
-                console.log(`🔄 Retrying... (${retryCount}/${CONFIG.retryAttempts})`);
+                console.log(`🔄 Retry ${retryCount}/${CONFIG.retryAttempts}`);
                 setTimeout(fetchTeslaData, CONFIG.retryDelay);
             } else {
-                console.log('❌ Max retries reached');
                 retryCount = 0;
             }
         }
         
-        /**
-         * CONNECTION STATUS MANAGER
-         * Updates status display in header (replaces old standalone status box)
-         */
         function updateConnectionStatus(status, message) {
-            // Update both old and new status indicators for compatibility
-            const indicators = ['statusIndicator', 'headerStatusIndicator'];
-            const texts = ['statusText', 'headerStatusText'];
+            const indicator = document.getElementById('statusIndicator');
+            const text = document.getElementById('statusText');
             
-            indicators.forEach(id => {
-                const indicator = document.getElementById(id);
-                if (indicator) {
-                    indicator.className = 'status-indicator';
-                    if (status === 'connected') {
-                        indicator.classList.add('connected');
-                    }
+            if (indicator) {
+                indicator.className = 'status-indicator';
+                if (status === 'connected') {
+                    indicator.classList.add('connected');
                 }
-            });
+            }
             
-            texts.forEach(id => {
-                const text = document.getElementById(id);
-                if (text) {
-                    text.textContent = message;
-                }
-            });
+            if (text) {
+                text.textContent = message;
+            }
         }
         
-        /**
-         * PRICE CHART GENERATOR
-         * Creates hourly price bars with updated color thresholds and current time arrow
-         * Color coding: Green < 2.5, Orange 2.5-3.0, Red 3.0-3.5, Purple > 3.5 kr/kWh
-         */
         function generateChart() {
             const chart = document.getElementById('priceChart');
+            const priceGrid = document.getElementById('priceGrid');
             chart.innerHTML = '';
+            priceGrid.innerHTML = '';
             
             const maxPrice = Math.max(...priceData);
+            const minPrice = Math.min(...priceData);
             const currentChargingHours = chargingSchedule[currentDay];
+            
+            // Generate price grid lines (every 0.5 kr from 0 to maxPrice + 0.5)
+            const maxGridPrice = Math.ceil(maxPrice * 2) / 2; // Round up to nearest 0.5
+            for (let price = 0.5; price <= maxGridPrice; price += 0.5) {
+                const line = document.createElement('div');
+                line.className = 'price-line';
+                
+                const percentage = ((maxGridPrice - price) / maxGridPrice) * 100;
+                line.style.top = percentage + '%';
+                
+                // Add price label for every 1 kr
+                if (price % 1 === 0) {
+                    const label = document.createElement('div');
+                    label.className = 'price-label';
+                    label.textContent = price.toFixed(0);
+                    line.appendChild(label);
+                }
+                
+                priceGrid.appendChild(line);
+            }
+            
+            // Generate current time arrow
+            addCurrentTimeArrow();
+            
+            // Generate bars
+            const now = new Date();
+            const currentHour = now.getHours();
             
             priceData.forEach((price, index) => {
                 const bar = document.createElement('div');
                 bar.className = 'bar';
                 
-                const height = Math.max((price / maxPrice) * 100, 8);
+                const height = Math.max((price / maxGridPrice) * 100, 5);
                 bar.style.height = height + '%';
                 
-                // Create hover tooltip
+                // Tooltip
                 const tooltip = document.createElement('div');
                 tooltip.className = 'tooltip';
                 tooltip.textContent = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
                 bar.appendChild(tooltip);
                 
-                // Apply color coding based on charging status and price thresholds
+                // Determine if this hour is in the past ('today' and 'yesterday')
+                const isPastHour = (currentDay === 'today' && index < currentHour) || 
+                                 (currentDay === 'yesterday');
+                
+                // Color coding
                 if (currentChargingHours.includes(index)) {
-                    // Charging hours get special animated pattern
                     bar.classList.add('charging');
+                    if (isPastHour) bar.classList.add('past');
                 } else {
-                    // Updated price color thresholds
-                    if (price < CONFIG.priceThresholds.green) {        // < 2.5 kr/kWh
+                    if (price < CONFIG.priceThresholds.green) {
                         bar.classList.add('green');
-                    } else if (price < CONFIG.priceThresholds.orange) { // 2.5-3.0 kr/kWh  
+                    } else if (price < CONFIG.priceThresholds.orange) {
                         bar.classList.add('orange');
-                    } else if (price < CONFIG.priceThresholds.red) {    // 3.0-3.5 kr/kWh
+                    } else if (price < CONFIG.priceThresholds.red) {
                         bar.classList.add('red');
-                    } else {                                            // > 3.5 kr/kWh
+                    } else {
                         bar.classList.add('purple');
                     }
+                    
+                    if (isPastHour) bar.classList.add('past');
                 }
                 
                 chart.appendChild(bar);
             });
             
-            console.log('📊 Price chart generated with updated color thresholds');
-            console.log(`🎨 Colors: Green < ${CONFIG.priceThresholds.green}, Orange < ${CONFIG.priceThresholds.orange}, Red < ${CONFIG.priceThresholds.red}, Purple >= ${CONFIG.priceThresholds.red}`);
+            console.log('📊 Chart generated with price grid');
         }
         
-        function updateStats() {
-            const cheapest = Math.min(...priceData);
-            const highest = Math.max(...priceData);
+        function addCurrentTimeArrow() {
+            // Only show arrow for "today" 
+            if (currentDay !== 'today') return;
             
-            document.getElementById('cheapestPrice').textContent = 
-                cheapest.toFixed(2).replace('.', ',');
-            document.getElementById('highestPrice').textContent = 
-                highest.toFixed(2).replace('.', ',');
+            const now = new Date();
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            
+            // Calculate position (0-24 hours)
+            const hourPosition = currentHour + (currentMinute / 60);
+            const percentagePosition = (hourPosition / 24) * 100;
+            
+            const arrow = document.createElement('div');
+            arrow.className = 'current-time-arrow';
+            arrow.style.left = percentagePosition + '%';
+            
+            document.querySelector('.chart-container').appendChild(arrow);
+            
+            console.log(`⏰ Current time arrow at ${currentHour}:${currentMinute.toString().padStart(2, '0')} (${percentagePosition.toFixed(1)}%)`);
         }
         
         function switchDay(day) {
-            console.log('📅 switchDay called with:', day);
+            console.log('📅 Switch to:', day);
             
             // Update active button
             document.querySelectorAll('.time-option').forEach(btn => {
@@ -858,7 +730,6 @@
             });
             
             const buttons = document.querySelectorAll('.time-option');
-            
             if (day === 'yesterday' && buttons[0]) {
                 buttons[0].classList.add('active');
             } else if (day === 'today' && buttons[1]) {
@@ -867,59 +738,25 @@
                 buttons[2].classList.add('active');
             }
             
-            // Update current day and price data
             currentDay = day;
             priceData = fallbackData[currentDay];
-            
-            // Update date display
-            updateDateDisplay(day);
-            
-            // Regenerate chart and update stats
             generateChart();
-            updateStats();
-        }
-        
-        function updateDateDisplay(day) {
-            const now = new Date();
-            const days = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
-            const months = ['jan', 'feb', 'mar', 'apr', 'maj', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
-            
-            let displayDate;
-            if (day === 'yesterday') {
-                const yesterday = new Date(now);
-                yesterday.setDate(yesterday.getDate() - 1);
-                displayDate = `${days[yesterday.getDay()]} d. ${yesterday.getDate()}. ${months[yesterday.getMonth()]}`;
-            } else if (day === 'today') {
-                displayDate = `${days[now.getDay()]} d. ${now.getDate()}. ${months[now.getMonth()]}`;
-            } else if (day === 'tomorrow') {
-                const tomorrow = new Date(now);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                displayDate = `${days[tomorrow.getDay()]} d. ${tomorrow.getDate()}. ${months[tomorrow.getMonth()]}`;
-            }
-            
-            document.getElementById('currentDate').textContent = displayDate;
         }
         
         // Initialization
         function init() {
-            console.log('🚀 Initializing Tesla Dashboard...');
+            console.log('🚀 Initializing Elbil Dashboard...');
             
-            // Update date display
-            updateDateDisplay(currentDay);
-            
-            // Generate initial chart with fallback data
             generateChart();
-            updateStats();
             
-            // Start fetching real data
-            console.log('📡 Starting data fetch from Gist...');
+            console.log('📡 Starting data fetch...');
             updateConnectionStatus('connecting', 'Starter...');
             fetchTeslaData();
             
             console.log('✅ Dashboard initialized');
         }
         
-        // Start the app when page loads
+        // Start the app
         document.addEventListener('DOMContentLoaded', init);
         
         // Handle page visibility for battery optimization
@@ -928,12 +765,12 @@
                 if (refreshTimer) {
                     clearInterval(refreshTimer);
                     refreshTimer = null;
-                    console.log('⏸️ Auto-refresh paused (tab hidden)');
+                    console.log('⏸️ Auto-refresh paused');
                 }
             } else {
                 if (!refreshTimer) {
                     refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                    console.log('▶️ Auto-refresh resumed (tab visible)');
+                    console.log('▶️ Auto-refresh resumed');
                     fetchTeslaData();
                 }
             }
