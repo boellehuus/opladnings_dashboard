@@ -150,16 +150,8 @@
         }
         
         .bar.current-time {
-            background: repeating-linear-gradient(
-                45deg,
-                #9370DB,
-                #9370DB 3px,
-                rgba(255, 255, 255, 0.8) 3px,
-                rgba(255, 255, 255, 0.8) 6px
-            );
-            border: 2px solid #7B68EE;
-            box-shadow: 0 0 8px rgba(147, 112, 219, 0.5);
-            animation: current-time-pulse 2s infinite;
+            /* Current time = lilla farve, ingen border */
+            background: #9370DB;
         }
         
         .bar.green {
@@ -271,42 +263,11 @@
             line-height: 1.1;
         }
         
-        .connection-status {
-            font-size: 10px;
-            color: #86868b;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            margin-right: 4px;
-            background: #ff3b30;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-indicator.connected {
-            background: #30d158;
-            animation: none;
-        }
-        
-        @keyframes current-time-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.85; }
-        }
+
         
         @keyframes charging-pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.8; }
-        }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
         }
         
         @media (prefers-reduced-motion: reduce) {
@@ -320,10 +281,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="connection-status" id="connectionStatus">
-            <span class="status-indicator" id="statusIndicator"></span>
-            <span id="statusText">Henter live data...</span>
-        </div>
+
         
         <div class="time-selector">
             <div class="time-option" onclick="switchDay('yesterday')">I går</div>
@@ -430,19 +388,7 @@
         }
         
         function updateConnectionStatus(status, message) {
-            const indicator = document.getElementById('statusIndicator');
-            const text = document.getElementById('statusText');
-            
-            if (indicator) {
-                indicator.className = 'status-indicator';
-                if (status === 'connected') {
-                    indicator.classList.add('connected');
-                }
-            }
-            
-            if (text) {
-                text.textContent = message;
-            }
+            // Connection status removed - no longer displayed
         }
         
         async function fetchTeslaData() {
@@ -622,20 +568,20 @@
                 const isCurrentTime = (currentDay === 'today' && index === currentHour);
                 
                 if (isCurrentTime) {
+                    // Current time = lilla farve, ingen border
                     bar.classList.add('current-time');
                 } else if (isCharging) {
+                    // Charging = grønne skraveringer
                     bar.classList.add('charging');
                     if (isPastHour) bar.classList.add('past');
                 } else {
-                    // Originale prisgrænser
-                    if (price < 2.5) {        // < 2.5 kr/kWh
+                    // Opdaterede prisgrænser: Grøn < 2.5, Orange 2.5-3.5, Rød >= 3.5
+                    if (price < 2.5) {        
                         bar.classList.add('green');
-                    } else if (price < 3.0) { // 2.5-3.0 kr/kWh  
+                    } else if (price < 3.5) {  
                         bar.classList.add('orange');
-                    } else if (price < 3.5) { // 3.0-3.5 kr/kWh
+                    } else {                  
                         bar.classList.add('red');
-                    } else {                  // > 3.5 kr/kWh
-                        bar.classList.add('purple');
                     }
                     
                     if (isPastHour) bar.classList.add('past');
