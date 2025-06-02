@@ -150,7 +150,6 @@
         }
         
         .bar.current-time {
-            /* Current time = lilla farve, ingen border */
             background: #9370DB;
         }
         
@@ -263,8 +262,6 @@
             line-height: 1.1;
         }
         
-
-        
         @keyframes charging-pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.8; }
@@ -281,8 +278,6 @@
 </head>
 <body>
     <div class="container">
-
-        
         <div class="time-selector">
             <div class="time-option" onclick="switchDay('yesterday')">I går</div>
             <div class="time-option active" onclick="switchDay('today')">I dag</div>
@@ -308,7 +303,7 @@
                 <span id="totalCost">18,41 kr</span>
             </div>
             <div class="charging-start" id="chargingStart">
-                Start kl. 13:00 i dag (billigste time)
+                Venter på Tesla data...
             </div>
         </div>
     </div>
@@ -325,7 +320,7 @@
             refreshInterval: 60000,
             retryAttempts: 3,
             retryDelay: 2000,
-            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/tesla-data.json'
+            dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/elbil-data.json'
         };
         
         // Opdaterede priser for 31. maj 2025 baseret på typiske danske elpriser
@@ -336,21 +331,12 @@
                 1.45, 1.88, 2.45, 2.85, 2.92, 2.68, 2.25, 2.02
             ],
             today: [
-                // Nattimer (00-06): Lave priser 
                 1.82, 1.78, 1.72, 1.68, 1.75, 1.85,
-                // Morgentimer (06-07): Stigende priser
-                2.08, // kl. 06:43 (nu) ca. 2,08 kr
-                2.15,
-                // Formiddagstimer (08-12): Moderat høje priser
+                2.08, 2.15,
                 2.05, 1.85, 1.45, 1.28, 1.15,
-                // Middagstimer (13-15): BILLIGSTE PERIODE
-                1.06, // kl. 13:00 - billigste time (1,06 kr)
-                1.08, 1.12,
-                // Eftermiddagstimer (16-19): Stigende
+                1.06, 1.08, 1.12,
                 1.35, 1.65, 1.95, 2.45,
-                // Aftentimer (20-23): DYRESTE PERIODE  
-                3.17, // kl. 20:00 - dyreste time (3,17 kr)
-                2.95, 2.68, 2.35
+                3.17, 2.95, 2.68, 2.35
             ],
             tomorrow: [
                 1.75, 1.68, 1.62, 1.58, 1.65, 1.78, 1.95, 2.12,
@@ -359,11 +345,11 @@
             ]
         };
         
-        // Opdateret ladeplanlægning baseret på billigste time (kl. 13:00)
+        // Charging schedule - opdateres fra Tesla data
         const chargingSchedule = {
             yesterday: [],
-            today: [13], // kl. 13:00 er billigste time i dag
-            tomorrow: [13]
+            today: [],
+            tomorrow: []
         };
         
         let priceData = realisticPrices[currentDay];
@@ -436,27 +422,29 @@
             
             currentTeslaData = teslaData;
             
-            if (teslaData.Tesla_total_cost) {
+            // Opdater med Tesla/Elbil data (webhook mapper Tesla_ til Elbil_)
+            if (teslaData.Elbil_total_cost) {
                 document.getElementById('totalCost').textContent = 
-                    parseFloat(teslaData.Tesla_total_cost).toFixed(2).replace('.', ',') + ' kr';
+                    parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
             }
             
-            if (teslaData.Tesla_kWh_needed) {
+            if (teslaData.Elbil_kWh_needed) {
                 document.getElementById('kWhNeeded').textContent = 
-                    parseFloat(teslaData.Tesla_kWh_needed).toFixed(2).replace('.', ',') + ' kWh';
+                    parseFloat(teslaData.Elbil_kWh_needed).toFixed(2).replace('.', ',') + ' kWh';
             }
             
-            if (teslaData.Tesla_compact_schedule) {
-                document.getElementById('chargingStart').textContent = teslaData.Tesla_compact_schedule;
+            if (teslaData.Elbil_compact_schedule) {
+                document.getElementById('chargingStart').textContent = teslaData.Elbil_compact_schedule;
             }
             
-            // Brug live Tesla priser hvis tilgængelige, ellers realistiske priser
-            if (teslaData.Tesla_price_data && Array.isArray(teslaData.Tesla_price_data) && teslaData.Tesla_price_data.length === 24) {
-                priceData = teslaData.Tesla_price_data;
+            // Brug live Elbil priser hvis tilgængelige, ellers realistiske priser
+            if (teslaData.Elbil_price_data && Array.isArray(teslaData.Elbil_price_data) && teslaData.Elbil_price_data.length === 24) {
+                priceData = teslaData.Elbil_price_data;
                 updateChargingHours(teslaData);
             } else {
-                // Brug realistiske priser
+                // Brug realistiske priser og opdater charging fra Tesla data
                 priceData = realisticPrices[currentDay];
+                updateChargingHours(teslaData);
             }
             
             generateChart();
@@ -464,7 +452,12 @@
         }
         
         function updateUIWithRealisticPrices() {
-            console.log('📊 Using realistic Danish electricity prices for May 31, 2025');
+            console.log('📊 Using realistic Danish electricity prices for June 1, 2025');
+            
+            // Reset charging schedule da vi ikke har live data
+            chargingSchedule.yesterday = [];
+            chargingSchedule.today = [];
+            chargingSchedule.tomorrow = [];
             
             // Beregn realistiske værdier baseret på billigste time
             const cheapestPrice = Math.min(...realisticPrices.today);
@@ -476,28 +469,49 @@
             document.getElementById('kWhNeeded').textContent = 
                 kWhNeeded.toFixed(2).replace('.', ',') + ' kWh';
             document.getElementById('chargingStart').textContent = 
-                'Start kl. 13:00 i dag (billigste time)';
+                'Venter på Tesla data...';
             
             priceData = realisticPrices[currentDay];
             generateChart();
             
             console.log(`💰 Cheapest price today: ${cheapestPrice.toFixed(3)} kr/kWh at 13:00`);
             console.log(`💸 Total cost: ${totalCost.toFixed(2)} kr for ${kWhNeeded} kWh`);
+            console.log(`📅 No charging schedule shown until Tesla data is loaded`);
         }
         
         function updateChargingHours(teslaData) {
-            if (teslaData.Tesla_optimal_start_time && teslaData.Tesla_charging_hours) {
+            // Reset alle dage først
+            chargingSchedule.yesterday = [];
+            chargingSchedule.today = [];
+            chargingSchedule.tomorrow = [];
+            
+            if (teslaData.Elbil_optimal_start_time && teslaData.Elbil_charging_hours) {
                 try {
-                    const startHour = parseInt(teslaData.Tesla_optimal_start_time.split(':')[0]);
-                    const chargingHours = parseInt(teslaData.Tesla_charging_hours);
+                    const startHour = parseInt(teslaData.Elbil_optimal_start_time.split(':')[0]);
+                    const chargingHours = parseInt(teslaData.Elbil_charging_hours);
                     
-                    chargingSchedule[currentDay] = [];
-                    for (let i = 0; i < chargingHours; i++) {
-                        const hour = (startHour + i) % 24;
-                        chargingSchedule[currentDay].push(hour);
+                    // Find ud af hvilken dag charging er planlagt til
+                    let targetDay = 'today'; // default
+                    
+                    if (teslaData.Elbil_compact_schedule) {
+                        const schedule = teslaData.Elbil_compact_schedule.toLowerCase();
+                        if (schedule.includes('i morgen')) {
+                            targetDay = 'tomorrow';
+                        } else if (schedule.includes('i dag')) {
+                            targetDay = 'today';
+                        } else if (schedule.includes('i går')) {
+                            targetDay = 'yesterday';
+                        }
                     }
                     
-                    console.log('⚡ Charging hours:', chargingSchedule[currentDay]);
+                    // Tilføj charging timer kun til den rigtige dag
+                    for (let i = 0; i < chargingHours; i++) {
+                        const hour = (startHour + i) % 24;
+                        chargingSchedule[targetDay].push(hour);
+                    }
+                    
+                    console.log(`⚡ Charging hours for ${targetDay}:`, chargingSchedule[targetDay]);
+                    console.log(`📅 Based on schedule: ${teslaData.Elbil_compact_schedule}`);
                 } catch (error) {
                     console.log('⚠️ Could not parse charging hours:', error);
                 }
@@ -568,14 +582,14 @@
                 const isCurrentTime = (currentDay === 'today' && index === currentHour);
                 
                 if (isCurrentTime) {
-                    // Current time = lilla farve, ingen border
+                    // Current time = lilla farve
                     bar.classList.add('current-time');
                 } else if (isCharging) {
                     // Charging = grønne skraveringer
                     bar.classList.add('charging');
                     if (isPastHour) bar.classList.add('past');
                 } else {
-                    // Opdaterede prisgrænser: Grøn < 2.5, Orange 2.5-3.5, Rød >= 3.5
+                    // Prisgrænser: Grøn < 2.5, Orange 2.5-3.5, Rød >= 3.5
                     if (price < 2.5) {        
                         bar.classList.add('green');
                     } else if (price < 3.5) {  
@@ -590,7 +604,7 @@
                 chart.appendChild(bar);
             });
             
-            console.log('📊 Chart generated with realistic Danish electricity prices');
+            console.log('📊 Chart generated successfully');
         }
         
         function switchDay(day) {
@@ -610,7 +624,7 @@
         }
         
         function init() {
-            console.log('🚀 Initializing Tesla Dashboard with realistic prices for May 31, 2025...');
+            console.log('🚀 Initializing Tesla Dashboard...');
             
             // Start med realistiske priser
             updateUIWithRealisticPrices();
@@ -619,9 +633,6 @@
             fetchTeslaData();
             
             console.log('✅ Dashboard initialized');
-            console.log('💡 Current price (06:43): ~2,08 kr/kWh');
-            console.log('💡 Cheapest price (13:00): 1,06 kr/kWh');
-            console.log('💡 Most expensive (20:00): 3,17 kr/kWh');
         }
         
         document.addEventListener('click', function(e) {
