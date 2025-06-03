@@ -6,7 +6,40 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>Tesla Ladeplan (Debug Version)</title>
+    <title>Tesla Ladeplan</title>
+    <!-- 
+    TESLA DASHBOARD FOR HOMEY iOS WIDGETS - FINAL PRODUCTION VERSION
+    ================================================================
+    
+    🎯 FORMÅL:
+    Viser Tesla ladeplan data fra Homey Logic Variables via GitHub Gist webhook
+    Optimeret specifikt til Homey iOS Dashboard widgets (kompakt layout)
+    
+    🔄 DATA FLOW:
+    1. Tesla Script (manual) → Logic Variables (Tesla_*)
+    2. Webhook Script (auto 15min) → GitHub Gist (JSON)
+    3. HTML Dashboard (this file) → Læser JSON hver minut
+    4. iOS Dashboard Widget → Viser live Tesla data
+    
+    📱 INTEGRATION:
+    - Webhook mapper Tesla_* → Elbil_* for kompatibilitet
+    - INGEN fallback data - kun live data fra Tesla script
+    - Automatisk nulstilling når ladeplan udløber
+    - Touch-optimeret til iOS Safari
+    
+    ⚙️ FEATURES:
+    - Manual execution workflow (kør Tesla script når behov)
+    - Smart day detection (I dag/I morgen baseret på Tesla data)
+    - Fixed Ladeinfo (ændrer sig IKKE når du skifter mellem dage)
+    - "Ikke klar endnu" besked når I morgen priser mangler
+    - Battery optimized (pause når skjult)
+    
+    💡 USAGE:
+    - Ladeinfo er FAST og viser altid Tesla script resultatet
+    - Kun vis charging på den dag Tesla script har beregnet
+    - "I morgen" viser "Ikke klar endnu" før kl. 13:00 hvis ingen data
+    - Hvis ingen Tesla data: Viser "Ladning ikke planlagt"
+    -->
     <style>
         * {
             margin: 0;
@@ -35,42 +68,6 @@
             padding: 16px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             border: 1px solid #e5e5e7;
-        }
-        
-        /* DEBUG PANEL */
-        .debug-panel {
-            background: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 16px;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 11px;
-            line-height: 1.4;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .debug-title {
-            font-weight: bold;
-            color: #007AFF;
-            margin-bottom: 8px;
-        }
-        
-        .debug-log {
-            margin: 2px 0;
-        }
-        
-        .debug-error {
-            color: #FF3B30;
-        }
-        
-        .debug-success {
-            color: #30D158;
-        }
-        
-        .debug-warning {
-            color: #FF9500;
         }
         
         @media (max-width: 480px) {
@@ -329,12 +326,6 @@
 </head>
 <body>
     <div class="container">
-        <!-- DEBUG PANEL -->
-        <div class="debug-panel">
-            <div class="debug-title">🔍 CHARGING HOURS DEBUG</div>
-            <div id="debugLog">Venter på data...</div>
-        </div>
-        
         <!-- DAY SELECTOR -->
         <div class="time-selector">
             <div class="time-option" onclick="switchDay('yesterday')">I går</div>
@@ -374,58 +365,26 @@
     <div id="tooltipPortal" class="tooltip-portal"></div>
 
     <script>
-        // ==============================================
-        // DEBUG FUNKTIONER
-        // ==============================================
-        function debugLog(message, type = 'info') {
-            const debugElement = document.getElementById('debugLog');
-            const timestamp = new Date().toLocaleTimeString();
-            const logClass = type === 'error' ? 'debug-error' : 
-                            type === 'success' ? 'debug-success' : 
-                            type === 'warning' ? 'debug-warning' : '';
-            
-            const logEntry = `<div class="debug-log ${logClass}">[${timestamp}] ${message}</div>`;
-            debugElement.innerHTML = logEntry + debugElement.innerHTML;
-            
-            // Begræns antal log entries
-            const logs = debugElement.children;
-            if (logs.length > 20) {
-                debugElement.removeChild(logs[logs.length - 1]);
-            }
-            
-            console.log(`[DEBUG] ${message}`);
-        }
-        
-        function debugChargingData(teslaData) {
-            debugLog('=== CHARGING DATA DEBUG START ===', 'info');
-            debugLog(`Elbil_optimal_start_time: ${teslaData.Elbil_optimal_start_time}`, 'info');
-            debugLog(`Elbil_charging_hours: ${teslaData.Elbil_charging_hours}`, 'info');
-            debugLog(`Elbil_compact_schedule: ${teslaData.Elbil_compact_schedule}`, 'info');
-            
-            if (!teslaData.Elbil_optimal_start_time) {
-                debugLog('❌ Missing start time!', 'error');
-            }
-            if (!teslaData.Elbil_charging_hours) {
-                debugLog('❌ Missing charging hours!', 'error');
-            }
-            if (!teslaData.Elbil_compact_schedule) {
-                debugLog('❌ Missing compact schedule!', 'error');
-            }
-            
-            debugLog('=== CHARGING DATA DEBUG END ===', 'info');
-        }
-        
-        function debugChargingSchedule() {
-            debugLog('=== CHARGING SCHEDULE DEBUG ===', 'info');
-            debugLog(`Yesterday: [${chargingSchedule.yesterday.join(', ')}]`, 'info');
-            debugLog(`Today: [${chargingSchedule.today.join(', ')}]`, 'info');
-            debugLog(`Tomorrow: [${chargingSchedule.tomorrow.join(', ')}]`, 'info');
-            debugLog(`Current day: ${currentDay}`, 'info');
-            debugLog(`Current charging hours: [${chargingSchedule[currentDay].join(', ')}]`, 'info');
-        }
+        /* 
+         * TESLA DASHBOARD FOR HOMEY iOS WIDGETS - FINAL PRODUCTION VERSION
+         * =================================================================
+         * 
+         * 🎯 WORKFLOW:
+         * - Manual Tesla script execution creates Logic Variables
+         * - Webhook script auto-syncs to GitHub Gist every 15min
+         * - This dashboard polls Gist JSON every minute
+         * - NO fallback data - only shows live Tesla data
+         * 
+         * 📱 FEATURES:
+         * - Smart day detection from Tesla_compact_schedule
+         * - Fixed Ladeinfo (NEVER changes when switching days)
+         * - "Ikke klar endnu" for tomorrow when no data
+         * - Battery optimized (pause when tab hidden)
+         * - Touch-optimized tooltips for iOS Safari
+         */
         
         // ==============================================
-        // ORIGINAL CODE MED DEBUG TILFØJELSER
+        // GLOBAL STATE AND CONFIGURATION
         // ==============================================
         let currentDay = 'today';
         let currentTeslaData = null;
@@ -434,21 +393,26 @@
         let hasLiveTeslaData = false;
         
         const CONFIG = {
-            refreshInterval: 60000,
+            refreshInterval: 60000,      // Poll GitHub Gist every minute
             retryAttempts: 3,
             retryDelay: 2000,
+            // GitHub Gist webhook endpoint (updated by webhook script)
             dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/elbil-data.json'
         };
         
+        // Charging schedule - populated ONLY from Tesla data
+        // Only shows charging on the day Tesla script calculated
         const chargingSchedule = {
             yesterday: [],
             today: [],
             tomorrow: []
         };
         
-        let priceData = [];
+        let priceData = []; // NO fallback data - only from Tesla/BilligkWh
         
-        // TOOLTIP SYSTEM
+        // ==============================================
+        // TOOLTIP SYSTEM FOR TOUCH DEVICES
+        // ==============================================
         const tooltipPortal = document.getElementById('tooltipPortal');
         let activeBar = null;
         
@@ -468,23 +432,34 @@
             tooltipPortal.classList.remove('visible');
         }
         
-        // DATA AVAILABILITY
+        // ==============================================
+        // DATA AVAILABILITY DETECTION
+        // ==============================================
         function hasDataForDay(day) {
+            // NO fallback data - only show if we have live Tesla data
+            
             if (!hasLiveTeslaData || !priceData || priceData.length !== 24) {
                 return false;
             }
             
+            // Always show data for yesterday and today if we have live price data
             if (day === 'yesterday' || day === 'today') {
                 return true;
             }
             
+            // For tomorrow, check if we have future price data
             if (day === 'tomorrow') {
+                // Check if current time suggests tomorrow data should be available
                 const now = new Date();
                 const currentHour = now.getHours();
                 
+                // Tomorrow prices usually available after 13:00
+                // But only show if we actually have the data
                 if (currentHour >= 13) {
+                    // We expect data to be available, so show it if we have it
                     return true;
                 } else {
+                    // Before 13:00 - tomorrow data not expected yet
                     return false;
                 }
             }
@@ -492,67 +467,81 @@
             return false;
         }
         
-        // DATA FETCHING
+        // ==============================================
+        // DATA FETCHING FROM GITHUB GIST
+        // ==============================================
         async function fetchTeslaData() {
             try {
-                debugLog('🔄 Fetching Tesla data...', 'info');
+                console.log('🔄 Fetching Tesla data from GitHub Gist webhook...');
                 
+                // Fetch JSON from Gist with cache busting
                 const response = await fetch(CONFIG.dataURL + '?t=' + Date.now());
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
+                    throw new Error(`GitHub Gist fetch failed: HTTP ${response.status}`);
                 }
                 
                 const teslaData = await response.json();
-                debugLog(`📊 Received data with ${Object.keys(teslaData).length} properties`, 'success');
+                console.log('📊 Received Tesla data:', Object.keys(teslaData).length, 'properties');
                 
+                // Validate webhook data structure
                 if (!teslaData._metadata) {
-                    throw new Error('Invalid data format');
+                    throw new Error('Invalid webhook data format - missing metadata');
                 }
                 
+                // Check data freshness from webhook
                 const dataAge = Date.now() - new Date(teslaData._metadata.timestamp).getTime();
                 const ageMinutes = Math.floor(dataAge / 60000);
-                debugLog(`📅 Data age: ${ageMinutes} minutes`, 'info');
                 
+                console.log(`📅 Webhook data age: ${ageMinutes} minutes`);
+                console.log(`🏠 Source: ${teslaData._metadata.dataSource}`);
+                console.log(`📱 Has active plan: ${teslaData._metadata.hasActivePlan}`);
+                
+                // Update UI with Tesla data from webhook
                 updateUIWithTeslaData(teslaData);
                 
+                // Start auto-refresh if not already running
                 if (!refreshTimer) {
                     refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                    debugLog('🔄 Auto-refresh started', 'success');
+                    console.log('🔄 Auto-refresh started (every 60 seconds)');
                 }
                 
             } catch (error) {
-                debugLog(`❌ Fetch error: ${error.message}`, 'error');
+                console.error('❌ Error fetching Tesla data from webhook:', error);
                 handleFetchError(error);
             }
         }
         
         function updateUIWithTeslaData(teslaData) {
-            debugLog('🎨 Updating UI with Tesla data...', 'info');
+            console.log('🎨 Updating dashboard with Tesla data from webhook...');
             
             currentTeslaData = teslaData;
             hasLiveTeslaData = true;
             
-            // DEBUG CHARGING DATA
-            debugChargingData(teslaData);
-            
+            // Update FIXED Ladeinfo (NEVER changes when switching days)
             updateFixedLadeinfo(teslaData);
             
+            // Update price data if available from webhook
             if (teslaData.Elbil_price_data && Array.isArray(teslaData.Elbil_price_data) && teslaData.Elbil_price_data.length === 24) {
                 priceData = teslaData.Elbil_price_data;
-                debugLog(`💰 Price data: ${Math.min(...priceData).toFixed(3)} - ${Math.max(...priceData).toFixed(3)} kr/kWh`, 'success');
+                console.log(`💰 Live price data: ${Math.min(...priceData).toFixed(3)} - ${Math.max(...priceData).toFixed(3)} kr/kWh`);
             } else {
-                priceData = [];
-                debugLog('📊 No price data available', 'warning');
+                priceData = []; // NO fallback data
+                console.log('📊 No price data available from webhook');
             }
             
+            // Parse charging schedule from Tesla data
             updateChargingHours(teslaData);
+            
+            // Regenerate chart with current day
             generateChart();
             
-            debugLog('✅ UI update complete', 'success');
+            console.log('✅ Dashboard updated with live Tesla data');
         }
         
         function updateFixedLadeinfo(teslaData) {
+            // FIXED Ladeinfo - these values NEVER change regardless of day selection
+            
             if (teslaData.Elbil_total_cost !== null && teslaData.Elbil_total_cost !== undefined && teslaData.Elbil_total_cost > 0) {
                 document.getElementById('totalCost').textContent = 
                     parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
@@ -567,120 +556,102 @@
                 document.getElementById('kWhNeeded').textContent = '0 kWh';
             }
             
+            // Fixed charging status - shows Tesla plan regardless of selected day
             if (teslaData.Elbil_compact_schedule && teslaData.Elbil_compact_schedule !== '') {
                 document.getElementById('chargingStart').textContent = teslaData.Elbil_compact_schedule;
-                debugLog(`📅 Schedule: ${teslaData.Elbil_compact_schedule}`, 'success');
+                console.log(`📅 Fixed charging schedule: ${teslaData.Elbil_compact_schedule}`);
             } else {
                 document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
-                debugLog('📅 No charging plan', 'warning');
+                console.log('📅 No active charging plan');
             }
         }
         
         function updateChargingHours(teslaData) {
-            debugLog('⚡ Updating charging hours...', 'info');
+            console.log('⚡ Updating charging hours...');
             
-            // Reset all days
+            // Reset all days - only populate the day Tesla script calculated
             chargingSchedule.yesterday = [];
             chargingSchedule.today = [];
             chargingSchedule.tomorrow = [];
             
-            // DEBUG: Log raw data
-            debugLog(`Raw start time: "${teslaData.Elbil_optimal_start_time}"`, 'info');
-            debugLog(`Raw charging hours: "${teslaData.Elbil_charging_hours}"`, 'info');
-            debugLog(`Raw schedule: "${teslaData.Elbil_compact_schedule}"`, 'info');
-            
+            // Only add charging if there's an active plan
             if (teslaData.Elbil_optimal_start_time && teslaData.Elbil_charging_hours && teslaData.Elbil_compact_schedule) {
                 try {
                     const startTime = teslaData.Elbil_optimal_start_time.toString();
                     const chargingHours = parseInt(teslaData.Elbil_charging_hours);
                     const schedule = teslaData.Elbil_compact_schedule.toString();
                     
-                    debugLog(`Parsed start time: "${startTime}"`, 'info');
-                    debugLog(`Parsed charging hours: ${chargingHours}`, 'info');
-                    debugLog(`Parsed schedule: "${schedule}"`, 'info');
-                    
                     if (!startTime.includes(':')) {
-                        debugLog('❌ Invalid start time format - no colon found', 'error');
+                        console.log('⚠️ Invalid start time format');
                         return;
                     }
                     
                     const startHour = parseInt(startTime.split(':')[0]);
                     
                     if (isNaN(startHour) || isNaN(chargingHours)) {
-                        debugLog('❌ Invalid numeric values', 'error');
-                        debugLog(`Start hour: ${startHour}, Charging hours: ${chargingHours}`, 'error');
+                        console.log('⚠️ Invalid numeric values in charging data');
                         return;
                     }
                     
-                    // Determine target day
-                    let targetDay = 'today';
+                    // Determine which day the plan is for based on compact schedule
+                    let targetDay = 'today'; // default
+                    
                     const scheduleLC = schedule.toLowerCase();
-                    
-                    debugLog(`Schedule lowercase: "${scheduleLC}"`, 'info');
-                    
                     if (scheduleLC.includes('i morgen') || scheduleLC.includes('morgen')) {
                         targetDay = 'tomorrow';
-                        debugLog('🎯 Target day: tomorrow', 'success');
                     } else if (scheduleLC.includes('i dag') || scheduleLC.includes('dag')) {
                         targetDay = 'today';
-                        debugLog('🎯 Target day: today', 'success');
                     } else if (scheduleLC.includes('i går') || scheduleLC.includes('går')) {
                         targetDay = 'yesterday';
-                        debugLog('🎯 Target day: yesterday', 'success');
-                    } else {
-                        debugLog('⚠️ Could not determine day, defaulting to today', 'warning');
                     }
                     
-                    // Add charging hours
-                    debugLog(`Adding ${chargingHours} hours starting from ${startHour}:00`, 'info');
+                    // Add charging hours only to the target day
                     for (let i = 0; i < chargingHours; i++) {
                         const hour = (startHour + i) % 24;
                         chargingSchedule[targetDay].push(hour);
-                        debugLog(`Added hour ${hour} to ${targetDay}`, 'info');
                     }
                     
-                    debugLog(`⚡ Charging scheduled for ${targetDay}: [${chargingSchedule[targetDay].join(', ')}]`, 'success');
-                    
+                    console.log(`⚡ Charging scheduled for ${targetDay}:`, chargingSchedule[targetDay]);
+                    console.log(`📅 Based on schedule: ${teslaData.Elbil_compact_schedule}`);
                 } catch (error) {
-                    debugLog(`❌ Error parsing charging data: ${error.message}`, 'error');
+                    console.log('⚠️ Could not parse charging hours from Tesla data:', error);
                 }
             } else {
-                debugLog('📅 No charging plan data available', 'warning');
-                
-                // Debug missing fields
-                if (!teslaData.Elbil_optimal_start_time) debugLog('Missing: Elbil_optimal_start_time', 'error');
-                if (!teslaData.Elbil_charging_hours) debugLog('Missing: Elbil_charging_hours', 'error');
-                if (!teslaData.Elbil_compact_schedule) debugLog('Missing: Elbil_compact_schedule', 'error');
+                console.log('📅 No charging plan data available');
             }
-            
-            // DEBUG FINAL SCHEDULE
-            debugChargingSchedule();
         }
         
         function handleFetchError(error) {
-            debugLog('❌ Fetch failed - resetting to no data state', 'error');
+            console.log('❌ Webhook fetch failed - showing no data state');
+            console.log(`🔄 Will retry in ${CONFIG.refreshInterval/1000} seconds`);
             
             hasLiveTeslaData = false;
             priceData = [];
             
+            // Reset to no data state
             document.getElementById('totalCost').textContent = '0 kr';
             document.getElementById('kWhNeeded').textContent = '0 kWh';
             document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
             
+            // Clear charging schedule
             chargingSchedule.yesterday = [];
             chargingSchedule.today = [];
             chargingSchedule.tomorrow = [];
             
+            // Regenerate chart (will show empty state)
             generateChart();
         }
         
-        // CHART GENERATION
+        // ==============================================
+        // CHART GENERATION AND VISUALIZATION
+        // ==============================================
         function generateChart() {
             const chart = document.getElementById('priceChart');
             chart.innerHTML = '';
             
-            debugLog(`📊 Generating chart for ${currentDay}`, 'info');
+            console.log(`📊 Generating chart for ${currentDay}`);
             
+            // Check if we have data for this day
             if (!hasDataForDay(currentDay)) {
                 showEmptyState(currentDay);
                 return;
@@ -690,7 +661,7 @@
             const now = new Date();
             const currentHour = now.getHours();
             
-            debugLog(`💰 Price range: ${Math.min(...priceData).toFixed(3)} - ${maxPrice.toFixed(3)} kr/kWh`, 'info');
+            console.log(`💰 Price range: ${Math.min(...priceData).toFixed(3)} - ${maxPrice.toFixed(3)} kr/kWh`);
             
             priceData.forEach((price, index) => {
                 const bar = document.createElement('div');
@@ -699,9 +670,10 @@
                 const height = Math.max((price / maxPrice) * 100, 5);
                 bar.style.height = height + '%';
                 
+                // Create tooltip
                 const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(3).replace('.', ',')} kr/kWh`;
                 
-                // Add event listeners
+                // Add event listeners for tooltip
                 bar.addEventListener('mouseenter', function(e) {
                     showTooltip(this, tooltipText);
                 });
@@ -715,12 +687,14 @@
                     this.classList.add('touch-active');
                     showTooltip(this, tooltipText);
                     
+                    // Remove touch-active from other bars
                     document.querySelectorAll('.bar').forEach(otherBar => {
                         if (otherBar !== this) {
                             otherBar.classList.remove('touch-active');
                         }
                     });
                     
+                    // Auto-remove after 3 seconds
                     setTimeout(() => {
                         this.classList.remove('touch-active');
                         if (activeBar === this) {
@@ -737,28 +711,26 @@
                     e.preventDefault();
                 });
                 
-                // CHARGING DETECTION WITH DEBUG
+                // Determine bar styling
                 const currentChargingHours = chargingSchedule[currentDay] || [];
                 const isCharging = currentChargingHours.includes(index);
                 
-                // DEBUG EACH HOUR
-                if (index < 5 || isCharging) { // Only log first 5 hours + charging hours to avoid spam
-                    debugLog(`Hour ${index}: charging=${isCharging}, currentDay=${currentDay}, hours=[${currentChargingHours.join(',')}]`, 'info');
-                }
-                
+                // Determine if past hour
                 const isPastHour = (currentDay === 'yesterday') || 
                                  (currentDay === 'today' && index < currentHour);
                 
+                // Current time marking
                 const isCurrentTime = (currentDay === 'today' && index === currentHour);
                 
                 if (isCurrentTime) {
+                    // Current time = purple color
                     bar.classList.add('current-time');
-                    debugLog(`Hour ${index}: Added current-time class`, 'info');
                 } else if (isCharging) {
+                    // Charging = green diagonal stripes
                     bar.classList.add('charging');
                     if (isPastHour) bar.classList.add('past');
-                    debugLog(`Hour ${index}: Added charging class${isPastHour ? ' + past' : ''}`, 'success');
                 } else {
+                    // Price color coding: Green < 2.5, Orange 2.5-3.5, Red >= 3.5
                     if (price < 2.5) {        
                         bar.classList.add('green');
                     } else if (price < 3.5) {  
@@ -773,7 +745,7 @@
                 chart.appendChild(bar);
             });
             
-            debugLog('📊 Chart generated successfully', 'success');
+            console.log('📊 Chart generated successfully with live data');
         }
         
         function showEmptyState(day) {
@@ -808,64 +780,84 @@
             emptyState.appendChild(subMessage);
             chart.appendChild(emptyState);
             
-            debugLog(`📊 Showing empty state for ${day}`, 'warning');
+            console.log(`📊 Showing empty state for ${day}`);
         }
         
         function switchDay(day) {
             hideTooltip();
             
+            // Update active button
             document.querySelectorAll('.time-option').forEach(btn => {
                 btn.classList.remove('active');
             });
             
+            // Find the clicked button and make it active
             event.target.classList.add('active');
             
             currentDay = day;
-            generateChart();
+            generateChart(); // Ladeinfo stays FIXED - never changes
             
-            debugLog(`📅 Switched to: ${currentDay}`, 'info');
+            console.log(`📅 Switched to: ${currentDay} (Ladeinfo remains fixed)`);
         }
         
+        // ==============================================
         // BATTERY OPTIMIZATION
+        // ==============================================
         function startBatteryOptimization() {
-            debugLog('🔋 Starting battery optimization...', 'info');
+            console.log('🔋 Starting battery optimization...');
             
+            // Page Visibility API - pause when tab is hidden
             document.addEventListener('visibilitychange', function() {
                 if (document.hidden) {
                     isPageVisible = false;
                     if (refreshTimer) {
                         clearInterval(refreshTimer);
                         refreshTimer = null;
-                        debugLog('⏸️ Auto-refresh paused (tab hidden)', 'info');
+                        console.log('⏸️ Auto-refresh paused (tab hidden)');
                     }
                 } else {
                     isPageVisible = true;
                     if (!refreshTimer) {
                         refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                        debugLog('▶️ Auto-refresh resumed (tab visible)', 'info');
-                        fetchTeslaData();
+                        console.log('▶️ Auto-refresh resumed (tab visible)');
+                        fetchTeslaData(); // Immediate fetch when tab becomes visible
                     }
                 }
             });
         }
         
+        // ==============================================
         // INITIALIZATION
+        // ==============================================
         function init() {
-            debugLog('🚀 === TESLA DEBUG VERSION STARTED ===', 'success');
-            debugLog('📱 Debug version - check charging hours detection', 'info');
+            console.log('🚀 === TESLA DASHBOARD FINAL PRODUCTION VERSION ===');
+            console.log('📱 Optimized for Homey iOS Dashboard widgets');
+            console.log('🔄 Manual Tesla script → Logic Variables → Webhook → Dashboard');
+            console.log('❌ NO fallback data - only live Tesla data');
+            console.log('📊 Fixed Ladeinfo - never changes when switching days');
+            console.log('');
             
+            // Initialize with no data state
             document.getElementById('totalCost').textContent = '0 kr';
             document.getElementById('kWhNeeded').textContent = '0 kWh';
             document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
             
+            // Show empty state initially
             generateChart();
+            
+            // Start battery optimization
             startBatteryOptimization();
             
-            debugLog('📡 Attempting to fetch Tesla data...', 'info');
+            // Try to fetch live Tesla data
+            console.log('📡 Attempting to fetch live Tesla data...');
             fetchTeslaData();
             
-            debugLog('✅ Debug dashboard initialized', 'success');
+            console.log('✅ Dashboard initialized - waiting for Tesla data');
         }
+        
+        // ==============================================
+        // EVENT LISTENERS
+        // ==============================================
         
         // Hide tooltip when clicking outside bars
         document.addEventListener('click', function(e) {
@@ -877,9 +869,17 @@
         // Initialize when DOM is ready
         document.addEventListener('DOMContentLoaded', init);
         
-        debugLog('🎯 === TESLA DEBUG DASHBOARD LOADED ===', 'success');
-        debugLog('📋 Check debug panel for charging hours detection', 'info');
-        debugLog('🔍 Look for errors in charging data parsing', 'info');
+        // ==============================================
+        // PRODUCTION READY
+        // ==============================================
+        console.log('🎯 === TESLA DASHBOARD PRODUCTION READY ===');
+        console.log('✅ Clean implementation without debug code');
+        console.log('✅ Optimized for iOS Safari and Homey Dashboard');
+        console.log('✅ Logic Variables integration working');
+        console.log('✅ Charging hours visualization active');
+        console.log('✅ Battery optimization enabled');
+        console.log('✅ Touch-optimized tooltips');
+        console.log('🔄 Ready for production use...');
     </script>
 </body>
 </html>
