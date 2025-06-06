@@ -320,11 +320,9 @@
 </head>
 <body>
     <div class="container">
-        <!-- 7-DAY SELECTOR - Genereres dynamisk i JavaScript -->
+        <!-- 6-DAY SELECTOR - Genereres dynamisk i JavaScript (UDEN i går) -->
         <div class="time-selector">
-            <div class="time-option" onclick="switchDay('yesterday')">I går</div>
             <div class="time-option active" onclick="switchDay('today')">I dag</div>
-            <div class="time-option" onclick="switchDay('tomorrow')">I morgen</div>
         </div>
 
         <!-- CHART CONTAINER -->
@@ -395,36 +393,34 @@
         billigkwhURL: 'https://billigkwh.dk/api/Priser/HentPriser?sted=DK1&netselskab=vores_elnet&produkt=greenbow_elaftale'
     };
 
-    // 3-DAY TESLA PRICE DATA STRUCTURE (original)
+    // 3-DAY TESLA PRICE DATA STRUCTURE (original) - UDEN yesterday
     const priceDataSet = {
-        yesterday: [],
         today: [],
         tomorrow: []
     };
 
-    // 7-DAY HENRIK DATA STRUCTURE
+    // 7-DAY HENRIK DATA STRUCTURE - UDEN yesterday
     const henrikDataSet = {
-        yesterday: [],
         today: [],
         tomorrow: [],
+        day2: [],
         day3: [],
         day4: [],
         day5: [],
         day6: []
     };
 
-    // STEP 6: 3-DAY BILLIGKWH DATA STRUCTURE  
+    // STEP 6: 2-DAY BILLIGKWH DATA STRUCTURE - UDEN yesterday  
     const billigkwhDataSet = {
-        yesterday: [],
         today: [],
         tomorrow: []
     };
 
-    // Enhanced charging schedule for 7 days
+    // Enhanced charging schedule for 6 days - UDEN yesterday
     const chargingSchedule = {
-        yesterday: [],
         today: [],
         tomorrow: [],
+        day2: [],
         day3: [],
         day4: [],
         day5: [],
@@ -627,15 +623,15 @@
                         });
                     }
                     
-                    // Assign til korrekt dag
+                    // Assign til korrekt dag - UDEN yesterday
                     let targetDay = null;
-                    if (daysDiff === -1) targetDay = 'yesterday';
-                    else if (daysDiff === 0) targetDay = 'today';
+                    if (daysDiff === 0) targetDay = 'today';
                     else if (daysDiff === 1) targetDay = 'tomorrow';
-                    else if (daysDiff === 2) targetDay = 'day3';
-                    else if (daysDiff === 3) targetDay = 'day4';
-                    else if (daysDiff === 4) targetDay = 'day5';
-                    else if (daysDiff === 5) targetDay = 'day6';
+                    else if (daysDiff === 2) targetDay = 'day2';
+                    else if (daysDiff === 3) targetDay = 'day3';
+                    else if (daysDiff === 4) targetDay = 'day4';
+                    else if (daysDiff === 5) targetDay = 'day5';
+                    else if (daysDiff === 6) targetDay = 'day6';
                     
                     if (targetDay && copenhagenHour >= 0 && copenhagenHour <= 23) {
                         // Sørg for array er initialiseret med 24 elementer
@@ -766,10 +762,9 @@
                         });
                     }
                     
-                    // Assign til korrekt dag
+                    // Assign til korrekt dag - UDEN yesterday
                     let targetDay = null;
-                    if (daysDiff === -1) targetDay = 'yesterday';
-                    else if (daysDiff === 0) targetDay = 'today';
+                    if (daysDiff === 0) targetDay = 'today';
                     else if (daysDiff === 1) targetDay = 'tomorrow';
                     
                     if (targetDay && dayData.priser.length === 24) {
@@ -969,21 +964,18 @@
     // STEP 4: SMART DATA PRIORITIZATION + 7-DAY UI
     // ==============================================
 
-    // Generate dynamic day buttons with weekday labels
+    // Generate dynamic day buttons with weekday labels - UDEN "I går"
     function generateDayButtons() {
         const today = new Date();
         const days = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
         const dayButtons = [];
         
-        for (let i = -1; i <= 5; i++) { // Fra i går til om 5 dage
+        for (let i = 0; i <= 5; i++) { // Fra i dag til om 5 dage (FJERNET i går)
             const date = new Date(today);
             date.setDate(today.getDate() + i);
             
             let label, key;
-            if (i === -1) {
-                label = 'I går';
-                key = 'yesterday';
-            } else if (i === 0) {
+            if (i === 0) {
                 label = 'I dag';
                 key = 'today';
             } else {
@@ -1032,12 +1024,12 @@
             }
         }
         
-        // PRIORITET 3: Enhanced Henrik data (7-dages backup)
+        // PRIORITET 3: Enhanced Henrik data (6-dages backup)
         if (hasHenrikDataForDay(day)) {
             const reliabilityMap = {
-                'yesterday': true,
                 'today': true,
                 'tomorrow': true,
+                'day2': true,
                 'day3': true,
                 'day4': false,  // Henrik pålidelig, men længere frem
                 'day5': false,
@@ -1146,10 +1138,8 @@
             
         } catch (error) {
             console.error('❌ Error in enhanced switchDay:', error);
-            // Fallback to original behavior
-            if (day === 'yesterday') {
-                priceData = priceDataSet.yesterday;
-            } else if (day === 'today') {
+            // Fallback to original behavior - UDEN yesterday
+            if (day === 'today') {
                 priceData = priceDataSet.today;
             } else if (day === 'tomorrow') {
                 priceData = priceDataSet.tomorrow;
@@ -1279,8 +1269,7 @@
             const currentChargingHours = chargingSchedule[currentDay] || [];
             const isCharging = currentChargingHours.includes(index);
             
-            const isPastHour = (currentDay === 'yesterday') || 
-                             (currentDay === 'today' && index < currentHour);
+            const isPastHour = (currentDay === 'today' && index < currentHour);
             
             const isCurrentTime = (currentDay === 'today' && index === currentHour);
             
@@ -1463,10 +1452,8 @@
         // Update charging hours
         updateChargingHours(teslaData);
         
-        // Point to current day's data
-        if (currentDay === 'yesterday') {
-            priceData = priceDataSet.yesterday;
-        } else if (currentDay === 'today') {
+        // Point to current day's data - UDEN yesterday
+        if (currentDay === 'today') {
             priceData = priceDataSet.today;
         } else if (currentDay === 'tomorrow') {
             priceData = priceDataSet.tomorrow;
@@ -1478,16 +1465,9 @@
         console.log('✅ STATUS: UI update completed');
     }
 
-    // Update Tesla price data structure
+    // Update Tesla price data structure - UDEN yesterday
     function updatePriceDataSet(teslaData) {
         console.log('🔄 STATUS: Updating Tesla price data...');
-        
-        if (teslaData.Elbil_price_data_yesterday && Array.isArray(teslaData.Elbil_price_data_yesterday)) {
-            priceDataSet.yesterday = teslaData.Elbil_price_data_yesterday;
-            console.log('✅ Tesla i går priser loaded:', priceDataSet.yesterday.length, 'timer');
-        } else {
-            priceDataSet.yesterday = [];
-        }
         
         if (teslaData.Elbil_price_data_today && Array.isArray(teslaData.Elbil_price_data_today)) {
             priceDataSet.today = teslaData.Elbil_price_data_today;
@@ -1529,12 +1509,12 @@
         }
     }
 
-    // Update charging hours schedule - enhanced for 7 days
+    // Update charging hours schedule - enhanced for 6 days UDEN yesterday
     function updateChargingHours(teslaData) {
-        // Reset all days - expanded for 7 days
-        chargingSchedule.yesterday = [];
+        // Reset all days - reduced to 6 days
         chargingSchedule.today = [];
         chargingSchedule.tomorrow = [];
+        chargingSchedule.day2 = [];
         chargingSchedule.day3 = [];
         chargingSchedule.day4 = [];
         chargingSchedule.day5 = [];
@@ -1555,9 +1535,8 @@
                         targetDay = 'tomorrow';
                     } else if (scheduleLC.includes('i dag')) {
                         targetDay = 'today';
-                    } else if (scheduleLC.includes('i går')) {
-                        targetDay = 'yesterday';
                     }
+                    // Fjernet "i går" håndtering
                     
                     for (let i = 0; i < chargingHours; i++) {
                         const hour = (startHour + i) % 24;
@@ -1572,10 +1551,9 @@
         }
     }
 
-    // Handle fetch errors
+    // Handle fetch errors - UDEN yesterday
     function handleFetchError(error) {
         hasLiveTeslaData = false;
-        priceDataSet.yesterday = [];
         priceDataSet.today = [];
         priceDataSet.tomorrow = [];
         
@@ -1591,10 +1569,10 @@
         document.getElementById('kWhNeeded').textContent = '0 kWh';
         document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
         
-        // Reset charging schedule for all days
-        chargingSchedule.yesterday = [];
+        // Reset charging schedule for all days - UDEN yesterday
         chargingSchedule.today = [];
         chargingSchedule.tomorrow = [];
+        chargingSchedule.day2 = [];
         chargingSchedule.day3 = [];
         chargingSchedule.day4 = [];
         chargingSchedule.day5 = [];
@@ -1755,8 +1733,7 @@
         Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
         Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
         
-        // Clear all price data initially
-        priceDataSet.yesterday = [];
+        // Clear all price data initially - UDEN yesterday
         priceDataSet.today = [];
         priceDataSet.tomorrow = [];
         priceData = priceDataSet.today; // Default to today
