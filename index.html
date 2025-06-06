@@ -441,7 +441,466 @@
 
     let calibratedTariffComponents = null;
 
-    console.log('🔄 STATUS: Global state og data strukturer oprettet');
+    ✅ BilligkWh integration successful - using for i går/i dag');
+            } else {
+                console.log('⚠️ BilligkWh failed - falling back to Tesla + Henrik');
+            }
+            
+            // STEP 3: Henrik data fetch and calibration
+            try {
+                console.log('🔄 Attempting Henrik data fetch and calibration...');
+                const henrikData = await fetchSolmollerData();
+                
+                if (henrikData) {
+                    // Try calibration if we have overlapping data (pass billigkwh data)
+                    const calibration = calculateActualMissingComponents(teslaData, henrikData, eurRate, billigkwhData);
+                    
+                    if (calibration) {
+                        calibratedTariffComponents = calibration;
+                        console.log('✅ Tariff calibration successful');
+                    } else {
+                        console.log('⚠️ No overlapping data for calibration, using defaults');
+                    }
+                    
+                    // Enhance Henrik data with tariffs
+                    await enhanceAllHenrikData();
+                } else {
+                    console.log('⚠️ Henrik data not available');
+                }
+                
+            } catch (henrikError) {
+                console.warn('⚠️ Henrik integration failed:', henrikError);
+                // Continue with BilligkWh + Tesla functionality
+            }
+            
+            if (!refreshTimer) {
+                refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
+                console.log('🔄 STATUS: Auto-refresh timer started');
+            }
+            
+        } catch (error) {
+            console.error('❌ STATUS: Data fetch error:', error);
+            handleFetchError(error);
+        }
+    }
+
+    // Update UI with Tesla data
+    function updateUIWithTeslaData(teslaData) {
+        console.log('🔄 STATUS: Updating UI with Tesla data...');
+        
+        currentTeslaData = teslaData;
+        hasLiveTeslaData = true;
+        
+        // Update fixed ladeinfo
+        updateFixedLadeinfo(teslaData);
+        
+        // Update 3-day price data
+        updatePriceDataSet(teslaData);
+        
+        // Update charging hours
+        updateChargingHours(teslaData);
+        
+        // Point to current day's data - UDEN yesterday
+        if (currentDay === 'today') {
+            priceData = priceDataSet.today;
+        } else if (currentDay === 'tomorrow') {
+            priceData = priceDataSet.tomorrow;
+        }
+        
+        // Regenerate chart
+        generateChart();
+        
+        console.log('✅ STATUS: UI update completed');
+    }
+
+    // Update Tesla price data structure - UDEN yesterday
+    function updatePriceDataSet(teslaData) {
+        console.log('🔄 STATUS: Updating Tesla price data...');
+        
+        if (teslaData.Elbil_price_data_today && Array.isArray(teslaData.Elbil_price_data_today)) {
+            priceDataSet.today = teslaData.Elbil_price_data_today;
+            console.log('✅ Tesla i dag priser loaded:', priceDataSet.today.length, 'timer');
+        } else {
+            priceDataSet.today = [];
+        }
+        
+        if (teslaData.Elbil_price_data_tomorrow && Array.isArray(teslaData.Elbil_price_data_tomorrow)) {
+            priceDataSet.tomorrow = teslaData.Elbil_price_data_tomorrow;
+            console.log('✅ Tesla i morgen priser loaded:', priceDataSet.tomorrow.length, 'timer');
+        } else {
+            priceDataSet.tomorrow = [];
+        }
+        
+        console.log('✅ STATUS: Tesla price data update completed');
+    }
+
+    // Update fixed charging info from Tesla
+    function updateFixedLadeinfo(teslaData) {
+        if (teslaData.Elbil_total_cost !== null && teslaData.Elbil_total_cost !== undefined && teslaData.Elbil_total_cost > 0) {
+            document.getElementById('totalCost').textContent = 
+                parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
+        } else {
+            document.getElementById('totalCost').textContent = '0 kr';
+        }
+        
+        if (teslaData.Elbil_kWh_needed !== null && teslaData.Elbil_kWh_needed !== undefined && teslaData.Elbil_kWh_needed > 0) {
+            document.getElementById('kWhNeeded').textContent = 
+                parseFloat(teslaData.Elbil_kWh_needed).toFixed(2).replace('.', ',') + ' kWh';
+        } else {
+            document.getElementById('kWhNeeded').textContent = '0 kWh';
+        }
+        
+        if (teslaData.Elbil_compact_schedule && teslaData.Elbil_compact_schedule !== '') {
+            document.getElementById('chargingStart').textContent = teslaData.Elbil_compact_schedule;
+        } else {
+            document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
+        }
+    }
+
+    // Update charging hours schedule - enhanced for 6 days UDEN yesterday
+    function updateChargingHours(teslaData) {
+        // Reset all days - reduced to 6 days
+        chargingSchedule.today = [];
+        chargingSchedule.tomorrow = [];
+        chargingSchedule.day2 = [];
+        chargingSchedule.day3 = [];
+        chargingSchedule.day4 = [];
+        chargingSchedule.day5 = [];
+        chargingSchedule.day6 = [];
+        
+        if (teslaData.Elbil_optimal_start_time && teslaData.Elbil_charging_hours && teslaData.Elbil_compact_schedule) {
+            try {
+                const startTime = teslaData.Elbil_optimal_start_time.toString();
+                const chargingHours = parseInt(teslaData.Elbil_charging_hours);
+                const schedule = teslaData.Elbil_compact_schedule.toString();
+                
+                if (startTime.includes(':')) {
+                    const startHour = parseInt(startTime.split(':')[0]);
+                    
+                    let targetDay = 'today';
+                    const scheduleLC = schedule.toLowerCase();
+                    if (scheduleLC.includes('i morgen')) {
+                        targetDay = 'tomorrow';
+                    } else if (scheduleLC.includes('i dag')) {
+                        targetDay = 'today';
+                    }
+                    // Fjernet "i går" håndtering
+                    
+                    for (let i = 0; i < chargingHours; i++) {
+                        const hour = (startHour + i) % 24;
+                        chargingSchedule[targetDay].push(hour);
+                    }
+                    
+                    console.log(`⚡ Tesla charging scheduled for ${targetDay}:`, chargingSchedule[targetDay]);
+                }
+            } catch (error) {
+                console.log('⚠️ Could not parse Tesla charging hours:', error);
+            }
+        }
+    }
+
+    // Handle fetch errors - UDEN yesterday
+    function handleFetchError(error) {
+        hasLiveTeslaData = false;
+        priceDataSet.today = [];
+        priceDataSet.tomorrow = [];
+        
+        // Clear Henrik data ved fejl  
+        Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
+        
+        // Clear BilligkWh data ved fejl
+        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+        
+        priceData = [];
+        
+        document.getElementById('totalCost').textContent = '0 kr';
+        document.getElementById('kWhNeeded').textContent = '0 kWh';
+        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
+        
+        // Reset charging schedule for all days - UDEN yesterday
+        chargingSchedule.today = [];
+        chargingSchedule.tomorrow = [];
+        chargingSchedule.day2 = [];
+        chargingSchedule.day3 = [];
+        chargingSchedule.day4 = [];
+        chargingSchedule.day5 = [];
+        chargingSchedule.day6 = [];
+        
+        generateChart();
+    }
+
+    // Battery optimization for mobile devices
+    function startBatteryOptimization() {
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                isPageVisible = false;
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                    console.log('⏸️ Auto-refresh paused');
+                }
+            } else {
+                isPageVisible = true;
+                if (!refreshTimer) {
+                    refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
+                    console.log('▶️ Auto-refresh resumed');
+                    fetchTeslaData();
+                }
+            }
+        });
+    }
+
+    console.log('✅ Tesla data integration and main fetch functions created');
+
+    // ==============================================
+    // STEP 5: SYSTEM HEALTH + DEBUG UTILITIES
+    // ==============================================
+
+    // System health check and diagnostics
+    function performSystemHealthCheck() {
+        const now = new Date();
+        const copenhagenTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
+        
+        const health = {
+            timestamp: now.toISOString(),
+            copenhagenTime: copenhagenTime.toISOString(),
+            timezoneOffset: now.getTimezoneOffset(),
+            eurRate: {
+                value: CONFIG.cachedEURRate,
+                lastUpdate: CONFIG.lastRateUpdate,
+                age: CONFIG.lastRateUpdate ? (Date.now() - CONFIG.lastRateUpdate.getTime()) / (60 * 60 * 1000) : 'unknown'
+            },
+            teslaData: {
+                available: hasLiveTeslaData,
+                days: Object.keys(priceDataSet).filter(day => 
+                    priceDataSet[day] && priceDataSet[day].length === 24
+                )
+            },
+            henrikData: {
+                available: Object.keys(henrikDataSet).some(day => hasHenrikDataForDay(day)),
+                days: Object.keys(henrikDataSet).filter(day => hasHenrikDataForDay(day))
+            },
+            billigkwhData: {
+                available: Object.keys(billigkwhDataSet).some(day => hasBilligkWhDataForDay(day)),
+                days: Object.keys(billigkwhDataSet).filter(day => hasBilligkWhDataForDay(day))
+            },
+            calibration: {
+                active: calibratedTariffComponents !== null,
+                reliability: calibratedTariffComponents?.reliability || 'none'
+            },
+            currentDay: currentDay,
+            dataSource: getDataForDay(currentDay).source
+        };
+        
+        console.log('🏥 SYSTEM HEALTH CHECK:');
+        console.log('🕒 Copenhagen Time:', health.copenhagenTime);
+        console.log('🌍 Browser Time:', health.timestamp);
+        console.log('⏰ Timezone Offset:', health.timezoneOffset, 'minutes');
+        console.log('💱 EUR Rate:', health.eurRate);
+        console.log('🚗 Tesla Data:', health.teslaData);
+        console.log('📊 Henrik Data:', health.henrikData);
+        console.log('💰 BilligkWh Data:', health.billigkwhData);
+        console.log('🔧 Calibration:', health.calibration);
+        console.log('📅 Current:', health.currentDay, '->', health.dataSource);
+        
+        return health;
+    }
+
+    // Test all integrations
+    function runIntegrationTests() {
+        console.log('🧪 Running integration tests...');
+        
+        const tests = {
+            eurRateLoading: loadCachedRate(),
+            dayButtonGeneration: generateDayButtons().length === 6,
+            dataSourcePrioritization: getDataForDay('today').source !== undefined,
+            chartGeneration: document.getElementById('priceChart') !== null,
+            tooltipSystem: document.getElementById('tooltipPortal') !== null,
+            configValid: CONFIG.solmollerURL.includes('github'),
+            dataStructures: Object.keys(henrikDataSet).length === 7
+        };
+        
+        const passed = Object.values(tests).filter(result => result === true).length;
+        const total = Object.keys(tests).length;
+        
+        console.log(`🧪 Integration tests: ${passed}/${total} passed`);
+        console.log('📋 Test details:', tests);
+        
+        if (passed === total) {
+            console.log('✅ All systems operational!');
+        } else {
+            console.warn('⚠️ Some integration issues detected');
+        }
+        
+        return tests;
+    }
+
+    // Debug command interface
+    function createDebugInterface() {
+        // Enhanced debugging with BilligkWh comparison
+        window.debugDashboard = {
+            health: performSystemHealthCheck,
+            test: runIntegrationTests,
+            switchDay: switchDayEnhanced,
+            eurRate: () => CONFIG.cachedEURRate,
+            teslaData: () => priceDataSet,
+            henrikData: () => henrikDataSet,
+            billigkwhData: () => billigkwhDataSet,
+            calibration: () => calibratedTariffComponents,
+            refresh: fetchTeslaData,
+            config: () => CONFIG,
+            forceHenrikFetch: fetchSolmollerData,
+            forceBilligkwhFetch: fetchBilligkWhData,
+            forceEnhancement: enhanceAllHenrikData,
+            comparePrices: () => {
+                console.log('🔍 PRICE COMPARISON FOR TODAY:');
+                if (hasBilligkWhDataForDay('today')) {
+                    const billigkwh = billigkwhDataSet.today;
+                    const avgBilligkwh = billigkwh.reduce((sum, p) => sum + p, 0) / 24;
+                    console.log('💰 BilligkWh avg:', avgBilligkwh.toFixed(3), 'kr/kWh');
+                }
+                if (hasHenrikDataForDay('today')) {
+                    const henrik = henrikDataSet.today;
+                    const avgHenrik = henrik.reduce((sum, p) => sum + p, 0) / 24;
+                    console.log('📊 Henrik enhanced avg:', avgHenrik.toFixed(3), 'kr/kWh');
+                }
+                if (priceDataSet.today.length === 24) {
+                    const tesla = priceDataSet.today;
+                    const avgTesla = tesla.reduce((sum, p) => sum + p, 0) / 24;
+                    console.log('🚗 Tesla avg:', avgTesla.toFixed(3), 'kr/kWh');
+                }
+                return {billigkwh: billigkwhDataSet.today, henrik: henrikDataSet.today, tesla: priceDataSet.today};
+            }
+        };
+        
+        console.log('🔧 Debug interface created: window.debugDashboard');
+        console.log('💡 Try: window.debugDashboard.health()');
+    }
+
+    console.log('✅ STEP 5: System health and debug utilities created');
+
+    // ==============================================
+    // EVENT HANDLERS + INITIALIZATION
+    // ==============================================
+
+    // Enhanced initialization function
+    function init() {
+        console.log('🔄 STATUS: Initializing enhanced dashboard...');
+        
+        // Initialize with no data state
+        document.getElementById('totalCost').textContent = '0 kr';
+        document.getElementById('kWhNeeded').textContent = '0 kWh';
+        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
+        
+        // STEP 1: Load cached exchange rate ved startup
+        loadCachedRate();
+        
+        // STEP 1: Fetch fresh rate non-blocking
+        fetchExchangeRate().catch(err => console.log('EUR rate fetch failed:', err));
+        
+        // STEP 4: Generate 6-day selector
+        updateDaySelector();
+        
+        // STEP 4: Initialize enhanced data structures
+        Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
+        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+        
+        // Clear all price data initially - UDEN yesterday
+        priceDataSet.today = [];
+        priceDataSet.tomorrow = [];
+        priceData = priceDataSet.today; // Default to today
+        
+        // Show empty state initially
+        generateChart();
+        
+        // Start battery optimization
+        startBatteryOptimization();
+        
+        // Create debug interface
+        createDebugInterface();
+        
+        // Try to fetch live Tesla data
+        fetchTeslaData();
+        
+        // STEP 5: Run integration tests
+        setTimeout(() => {
+            const testResults = runIntegrationTests();
+            console.log('🧪 Initial test results:', testResults);
+        }, 1000);
+        
+        // STEP 5: Perform health check
+        setTimeout(() => {
+            performSystemHealthCheck();
+        }, 2000);
+        
+        console.log('✅ STATUS: Enhanced dashboard initialization completed');
+        console.log('🎯 FINAL STATUS: All 5 steps implemented successfully!');
+        console.log('📊 Features: 6-day UI, EUR rate caching, Henrik integration, smart prioritization, enhanced UX');
+    }
+
+    // Hide tooltip when clicking outside bars
+    document.addEventListener('click', function(e) {
+        if (!e.target.classList.contains('bar')) {
+            hideTooltip();
+        }
+    });
+
+    // Handle page visibility for battery optimization
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            console.log('📱 Page hidden - pausing refresh');
+        } else {
+            console.log('📱 Page visible - resuming refresh');
+        }
+    });
+
+    // Error handling for unhandled promises
+    window.addEventListener('unhandledrejection', function(event) {
+        console.error('🚨 Unhandled promise rejection:', event.reason);
+        // Don't prevent default to keep error visible in console
+    });
+
+    // Error handling for general errors
+    window.addEventListener('error', function(event) {
+        console.error('🚨 JavaScript error:', event.error);
+    });
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', init);
+
+    // Expose global functions for backward compatibility and debugging
+    window.switchDay = switchDay;
+    window.generateChart = generateChart;
+    window.fetchTeslaData = fetchTeslaData;
+
+    console.log('✅ STATUS: Event handlers and initialization setup completed');
+    console.log('🎯 READY: Tesla dashboard med Henrik Solmøller integration');
+    console.log('🔧 DEBUG: Brug window.debugDashboard.health() for system status');
+    console.log('📱 MOBILE: Optimeret til iOS webapp og responsive design');
+    console.log('🌍 TIMEZONE: Konfigureret til Copenhagen/Europe timezone');
+    console.log('💱 CURRENCY: EUR/DKK kurs cached i 24 timer');
+    console.log('📊 DATA: Tesla prioriteret, Henrik backup + 7-dages prognose');
+    console.log('⚡ CHARGING: Smart tariff calibration og price enhancement');
+
+    // Final status message
+    setTimeout(() => {
+        console.log('');
+        console.log('🎉 ================================================');
+        console.log('🎉 TESLA DASHBOARD ENHANCED - FULLY OPERATIONAL');  
+        console.log('🎉 ================================================');
+        console.log('📅 6-DAY FORECAST: ✅ Henrik Solmøller integration');
+        console.log('💱 EXCHANGE RATE: ✅ Daily EUR/DKK caching');
+        console.log('💰 PRICE ENHANCE: ✅ Spot + tariffer + moms');
+        console.log('🎯 SMART PRIORITY: ✅ BilligkWh → Tesla → Henrik');
+        console.log('🕒 TIMEZONE SAFE: ✅ Copenhagen time handling');
+        console.log('🔧 DEBUG READY: ✅ window.debugDashboard.*');
+        console.log('📱 MOBILE OPTIM: ✅ Battery + responsive design');
+        console.log('🎉 ================================================');
+    }, 3000);
+
+</script>
+</body>
+</html>🔄 STATUS: Global state og data strukturer oprettet');
 
     // ==============================================
     // STEP 1: EUR/DKK EXCHANGE RATE FUNCTIONS
@@ -627,145 +1086,6 @@
                     let targetDay = null;
                     if (daysDiff === 0) targetDay = 'today';
                     else if (daysDiff === 1) targetDay = 'tomorrow';
-                    else if (daysDiff === 2) targetDay = 'day2';
-                    else if (daysDiff === 3) targetDay = 'day3';
-                    else if (daysDiff === 4) targetDay = 'day4';
-                    else if (daysDiff === 5) targetDay = 'day5';
-                    else if (daysDiff === 6) targetDay = 'day6';
-                    
-                    if (targetDay && copenhagenHour >= 0 && copenhagenHour <= 23) {
-                        // Sørg for array er initialiseret med 24 elementer
-                        if (henrikDataSet[targetDay].length === 0) {
-                            henrikDataSet[targetDay] = new Array(24).fill(0);
-                        }
-                        henrikDataSet[targetDay][copenhagenHour] = price;
-                    }
-                    
-                } catch (parseError) {
-                    console.warn('⚠️ Could not parse Henrik entry:', parseError, entry);
-                }
-            });
-            
-            // Log resultater med timezone info
-            console.log('🕒 Timezone conversion: UTC → Europe/Copenhagen');
-            Object.keys(henrikDataSet).forEach(day => {
-                if (henrikDataSet[day].length === 24) {
-                    const validPrices = henrikDataSet[day].filter(p => p > 0);
-                    if (validPrices.length > 0) {
-                        const avgPrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
-                        const minPrice = Math.min(...validPrices);
-                        const maxPrice = Math.max(...validPrices);
-                        console.log(`✅ Henrik ${day}: ${validPrices.length}/24 hours, ${minPrice.toFixed(1)}-${maxPrice.toFixed(1)} EUR/MWh (avg ${avgPrice.toFixed(1)})`);
-                    } else {
-                        console.log(`⚠️ Henrik ${day}: 24 hours initialized but no valid prices`);
-                    }
-                } else {
-                    console.log(`❌ Henrik ${day}: no data`);
-                }
-            });
-            
-        } catch (error) {
-            console.error('❌ Error organizing Henrik data:', error);
-        }
-    }
-
-    // Check if Henrik has complete data for a specific day
-    function hasHenrikDataForDay(day) {
-        return henrikDataSet[day] && 
-               Array.isArray(henrikDataSet[day]) && 
-               henrikDataSet[day].length === 24 &&
-               henrikDataSet[day].some(price => price > 0);
-    }
-
-    console.log('✅ STEP 2: Henrik Solmøller data functions created');
-
-    // ==============================================
-    // STEP 6: BILLIGKWH API INTEGRATION
-    // ==============================================
-
-    // Fetch BilligkWh 3-day prices (i går, i dag, i morgen)
-    async function fetchBilligkWhData() {
-        try {
-            console.log('💰 Fetching BilligkWh prices...');
-            
-            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now(), {
-                headers: {
-                    'User-Agent': 'Tesla-Dashboard/1.0'
-                }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`BilligkWh API HTTP ${response.status}`);
-            }
-            
-            const billigkwhData = await response.json();
-            console.log('✅ BilligkWh data received');
-            console.log('📅 Available days:', billigkwhData.length);
-            
-            // Parse og organiser BilligkWh data i 3-dages struktur
-            updateBilligkWhDataSet(billigkwhData);
-            
-            return billigkwhData;
-            
-        } catch (error) {
-            console.warn('⚠️ BilligkWh data fetch failed:', error);
-            console.log('🔧 CORS Error? Falling back to Tesla + Henrik data');
-            // Clear BilligkWh data ved fejl
-            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
-            return null;
-        }
-    }
-
-    // Organiser BilligkWh data i daglige arrays med Copenhagen timezone
-    function updateBilligkWhDataSet(billigkwhData) {
-        try {
-            console.log('🔄 Organizing BilligkWh data into 3-day structure...');
-            
-            // Clear existing data
-            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
-            
-            if (!billigkwhData || !Array.isArray(billigkwhData)) {
-                console.warn('⚠️ Invalid BilligkWh data format - not an array');
-                return;
-            }
-            
-            // Get current Copenhagen time for day calculations
-            const now = new Date();
-            const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
-            const copenhagenToday = new Date(copenhagenNow.getFullYear(), copenhagenNow.getMonth(), copenhagenNow.getDate());
-            
-            console.log('🕒 Copenhagen current time:', copenhagenNow.toISOString());
-            console.log('📊 Processing BilligkWh data:', billigkwhData.length, 'days');
-            
-            // Process each day from BilligkWh - format: [{dato: "2025-06-06T00:00:00", priser: [24 prices]}]
-            billigkwhData.forEach((dayData, index) => {
-                try {
-                    if (!dayData.dato || !dayData.priser || !Array.isArray(dayData.priser)) {
-                        console.log(`⚠️ Invalid day data at index ${index}:`, dayData);
-                        return;
-                    }
-                    
-                    // Parse BilligkWh date
-                    const billigkwhDate = new Date(dayData.dato);
-                    const billigkwhDay = new Date(billigkwhDate.getFullYear(), billigkwhDate.getMonth(), billigkwhDate.getDate());
-                    
-                    // Calculate day offset from Copenhagen today
-                    const daysDiff = Math.floor((billigkwhDay - copenhagenToday) / (24 * 60 * 60 * 1000));
-                    
-                    // Debug logging for first few entries
-                    if (index < 3) {
-                        console.log(`🔍 Day ${index}:`, {
-                            originalDate: dayData.dato,
-                            parsedDate: billigkwhDate.toISOString(),
-                            daysDiff: daysDiff,
-                            pricesLength: dayData.priser.length
-                        });
-                    }
-                    
-                    // Assign til korrekt dag - UDEN yesterday
-                    let targetDay = null;
-                    if (daysDiff === 0) targetDay = 'today';
-                    else if (daysDiff === 1) targetDay = 'tomorrow';
                     
                     if (targetDay && dayData.priser.length === 24) {
                         billigkwhDataSet[targetDay] = [...dayData.priser]; // Copy array
@@ -805,24 +1125,121 @@
     // STEP 3: PRICE ENHANCEMENT + TARIFF CALCULATION
     // ==============================================
 
-    // Calculate actual missing components by comparing Tesla vs Henrik
-    function calculateActualMissingComponents(teslaData, henrikData, eurRate) {
+    // Enhanced calculation using BilligkWh as primary reference for better accuracy
+    function calculateActualMissingComponents(teslaData, henrikData, eurRate, billigkwhData = null) {
         try {
-            console.log('🔍 Calibrating tariffs: Tesla vs Henrik comparison...');
+            console.log('🔍 Calibrating tariffs: Henrik vs BilligkWh/Tesla comparison...');
             
-            // Check if we have overlapping "tomorrow" data
+            // PRIORITET 1: Sammenlign med BilligkWh data hvis tilgængelig
+            if (billigkwhData && hasBilligkWhDataForDay('today')) {
+                console.log('✅ Using BilligkWh for calibration (most accurate)');
+                return calibrateAgainstBilligkWh(henrikData, eurRate, billigkwhData);
+            }
+            
+            // PRIORITET 2: Fallback til Tesla data
             const teslaTomorrow = teslaData.Elbil_price_data_tomorrow;
             const henrikTomorrow = henrikDataSet.tomorrow;
             
             if (!teslaTomorrow || !henrikTomorrow || 
                 teslaTomorrow.length !== 24 || henrikTomorrow.length !== 24) {
-                console.log('⚠️ Insufficient overlapping data for calibration');
+                console.log('⚠️ Insufficient overlapping data for Tesla calibration');
                 return null;
             }
             
-            console.log('✅ Found overlapping tomorrow data - calibrating...');
+            console.log('✅ Using Tesla data for calibration (backup method)');
+            return calibrateAgainstTesla(teslaTomorrow, henrikTomorrow, eurRate);
             
-            // Convert Henrik EUR/MWh to kr/kWh (spotpris only)
+        } catch (error) {
+            console.error('❌ Calibration failed:', error);
+            return null;
+        }
+    }
+
+    // Calibrate Henrik against BilligkWh (most accurate method)
+    function calibrateAgainstBilligkWh(henrikData, eurRate, billigkwhData) {
+        try {
+            const henrikToday = henrikDataSet.today;
+            const billigkwhToday = billigkwhDataSet.today;
+            
+            if (!henrikToday || !billigkwhToday || 
+                henrikToday.length !== 24 || billigkwhToday.length !== 24) {
+                console.log('⚠️ Insufficient BilligkWh overlapping data');
+                return null;
+            }
+            
+            console.log('🔍 Calibrating Henrik vs BilligkWh for today...');
+            
+            // Convert Henrik EUR/MWh to kr/kWh (spot price only)
+            const henrikSpotPrices = henrikToday.map(eurPerMWh => 
+                (eurPerMWh / 1000) * eurRate
+            );
+            
+            // Calculate missing components hour by hour
+            const hourlyDifferences = [];
+            const missingComponents = [];
+            
+            for (let hour = 0; hour < 24; hour++) {
+                const billigkwhCompletePrice = billigkwhToday[hour];    // Complete Danish price
+                const henrikSpotPrice = henrikSpotPrices[hour];         // Spot only
+                
+                const missing = billigkwhCompletePrice - henrikSpotPrice;
+                
+                hourlyDifferences.push({
+                    hour,
+                    billigkwhPrice: billigkwhCompletePrice,
+                    henrikSpot: henrikSpotPrice,
+                    missing: missing,
+                    missingPercent: (missing / billigkwhCompletePrice) * 100
+                });
+                
+                missingComponents.push(missing);
+            }
+            
+            // Calculate statistics
+            const avgMissing = missingComponents.reduce((sum, c) => sum + c, 0) / missingComponents.length;
+            const minMissing = Math.min(...missingComponents);
+            const maxMissing = Math.max(...missingComponents);
+            const avgBilligkwhPrice = billigkwhToday.reduce((sum, p) => sum + p, 0) / billigkwhToday.length;
+            const avgHenrikSpot = henrikSpotPrices.reduce((sum, p) => sum + p, 0) / henrikSpotPrices.length;
+            
+            console.log('📊 BilligkWh Calibration Results:');
+            console.log(`💰 Average missing components: ${avgMissing.toFixed(3)} kr/kWh`);
+            console.log(`📈 Range: ${minMissing.toFixed(3)} - ${maxMissing.toFixed(3)} kr/kWh`);
+            console.log(`📊 Missing = ${((avgMissing / avgBilligkwhPrice) * 100).toFixed(1)}% of total price`);
+            console.log(`⚡ Henrik spot avg: ${avgHenrikSpot.toFixed(3)} kr/kWh`);
+            console.log(`🏁 BilligkWh complete avg: ${avgBilligkwhPrice.toFixed(3)} kr/kWh`);
+            
+            // Intelligent component breakdown based on BilligkWh
+            const calibrated = {
+                elafgift: 0.697,                                    // Fixed component
+                variableTariffs: Math.max(0, avgMissing - 0.697),   // Rest = nettarif + system + margin
+                momsIncluded: true,                                 // BilligkWh already has VAT
+                hourlyVariation: hourlyDifferences,
+                avgMissing: avgMissing,
+                reliability: 'high',
+                calibrationSource: 'BilligkWh'
+            };
+            
+            // Further breakdown of variable tariffs
+            calibrated.nettarif = calibrated.variableTariffs * 0.75;      // ~75% of variable
+            calibrated.systemtarif = calibrated.variableTariffs * 0.15;   // ~15% of variable  
+            calibrated.spottillaeg = calibrated.variableTariffs * 0.10;   // ~10% of variable
+            calibrated.momsRate = 1.0; // No additional VAT needed
+            
+            return calibrated;
+            
+        } catch (error) {
+            console.error('❌ BilligkWh calibration failed:', error);
+            return null;
+        }
+    }
+
+    // Calibrate Henrik against Tesla (backup method)
+    function calibrateAgainstTesla(teslaTomorrow, henrikTomorrow, eurRate) {
+        try {
+            console.log('🔍 Calibrating Henrik vs Tesla for tomorrow...');
+            
+            // Convert Henrik EUR/MWh to kr/kWh (spot price only)
             const henrikSpotPrices = henrikTomorrow.map(eurPerMWh => 
                 (eurPerMWh / 1000) * eurRate
             );
@@ -832,8 +1249,8 @@
             const missingComponents = [];
             
             for (let hour = 0; hour < 24; hour++) {
-                const teslaCompletePrice = teslaTomorrow[hour];    // Complete price
-                const henrikSpotPrice = henrikSpotPrices[hour];    // Spot only
+                const teslaCompletePrice = teslaTomorrow[hour];     // Complete price
+                const henrikSpotPrice = henrikSpotPrices[hour];     // Spot only
                 
                 const missing = teslaCompletePrice - henrikSpotPrice;
                 
@@ -855,7 +1272,7 @@
             const avgTeslaPrice = teslaTomorrow.reduce((sum, p) => sum + p, 0) / teslaTomorrow.length;
             const avgHenrikSpot = henrikSpotPrices.reduce((sum, p) => sum + p, 0) / henrikSpotPrices.length;
             
-            console.log('📊 Calibration Results:');
+            console.log('📊 Tesla Calibration Results:');
             console.log(`💰 Average missing components: ${avgMissing.toFixed(3)} kr/kWh`);
             console.log(`📈 Range: ${minMissing.toFixed(3)} - ${maxMissing.toFixed(3)} kr/kWh`);
             console.log(`📊 Missing = ${((avgMissing / avgTeslaPrice) * 100).toFixed(1)}% of total price`);
@@ -869,7 +1286,8 @@
                 momsIncluded: true,                                 // Tesla already has VAT
                 hourlyVariation: hourlyDifferences,
                 avgMissing: avgMissing,
-                reliability: 'high'
+                reliability: 'high',
+                calibrationSource: 'Tesla'
             };
             
             // Further breakdown of variable tariffs
@@ -881,7 +1299,7 @@
             return calibrated;
             
         } catch (error) {
-            console.error('❌ Calibration failed:', error);
+            console.error('❌ Tesla calibration failed:', error);
             return null;
         }
     }
@@ -1074,8 +1492,8 @@
                 button.textContent = dayInfo.label;
                 button.setAttribute('data-day', dayInfo.key);
                 
-                // Set active button (default to today)
-                if (dayInfo.key === currentDay || (index === 1 && currentDay === 'today')) {
+                // Set active button (default to today only)
+                if (dayInfo.key === currentDay || (dayInfo.key === 'today' && currentDay === 'today')) {
                     button.classList.add('active');
                 }
                 
@@ -1393,439 +1811,143 @@
             
             // STEP 6: BilligkWh integration result
             if (billigkwhData) {
-                console.log('✅ BilligkWh integration successful - using for i går/i dag');
-            } else {
-                console.log('⚠️ BilligkWh failed - falling back to Tesla + Henrik');
-            }
-            
-            // STEP 3: Henrik data fetch and calibration
-            try {
-                console.log('🔄 Attempting Henrik data fetch and calibration...');
-                const henrikData = await fetchSolmollerData();
-                
-                if (henrikData) {
-                    // Try calibration if we have overlapping data
-                    const calibration = calculateActualMissingComponents(teslaData, henrikData, eurRate);
+                console.log('
+                    if (daysDiff === 0) targetDay = 'today';
+                    else if (daysDiff === 1) targetDay = 'tomorrow';
+                    else if (daysDiff === 2) targetDay = 'day2';
+                    else if (daysDiff === 3) targetDay = 'day3';
+                    else if (daysDiff === 4) targetDay = 'day4';
+                    else if (daysDiff === 5) targetDay = 'day5';
+                    else if (daysDiff === 6) targetDay = 'day6';
                     
-                    if (calibration) {
-                        calibratedTariffComponents = calibration;
-                        console.log('✅ Tariff calibration successful');
-                    } else {
-                        console.log('⚠️ No overlapping data for calibration, using defaults');
+                    if (targetDay && copenhagenHour >= 0 && copenhagenHour <= 23) {
+                        // Sørg for array er initialiseret med 24 elementer
+                        if (henrikDataSet[targetDay].length === 0) {
+                            henrikDataSet[targetDay] = new Array(24).fill(0);
+                        }
+                        henrikDataSet[targetDay][copenhagenHour] = price;
                     }
                     
-                    // Enhance Henrik data with tariffs
-                    await enhanceAllHenrikData();
-                } else {
-                    console.log('⚠️ Henrik data not available');
+                } catch (parseError) {
+                    console.warn('⚠️ Could not parse Henrik entry:', parseError, entry);
                 }
-                
-            } catch (henrikError) {
-                console.warn('⚠️ Henrik integration failed:', henrikError);
-                // Continue with BilligkWh + Tesla functionality
-            }
+            });
             
-            if (!refreshTimer) {
-                refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                console.log('🔄 STATUS: Auto-refresh timer started');
-            }
+            // Log resultater med timezone info
+            console.log('🕒 Timezone conversion: UTC → Europe/Copenhagen');
+            Object.keys(henrikDataSet).forEach(day => {
+                if (henrikDataSet[day].length === 24) {
+                    const validPrices = henrikDataSet[day].filter(p => p > 0);
+                    if (validPrices.length > 0) {
+                        const avgPrice = validPrices.reduce((sum, p) => sum + p, 0) / validPrices.length;
+                        const minPrice = Math.min(...validPrices);
+                        const maxPrice = Math.max(...validPrices);
+                        console.log(`✅ Henrik ${day}: ${validPrices.length}/24 hours, ${minPrice.toFixed(1)}-${maxPrice.toFixed(1)} EUR/MWh (avg ${avgPrice.toFixed(1)})`);
+                    } else {
+                        console.log(`⚠️ Henrik ${day}: 24 hours initialized but no valid prices`);
+                    }
+                } else {
+                    console.log(`❌ Henrik ${day}: no data`);
+                }
+            });
             
         } catch (error) {
-            console.error('❌ STATUS: Data fetch error:', error);
-            handleFetchError(error);
+            console.error('❌ Error organizing Henrik data:', error);
         }
     }
 
-    // Update UI with Tesla data
-    function updateUIWithTeslaData(teslaData) {
-        console.log('🔄 STATUS: Updating UI with Tesla data...');
-        
-        currentTeslaData = teslaData;
-        hasLiveTeslaData = true;
-        
-        // Update fixed ladeinfo
-        updateFixedLadeinfo(teslaData);
-        
-        // Update 3-day price data
-        updatePriceDataSet(teslaData);
-        
-        // Update charging hours
-        updateChargingHours(teslaData);
-        
-        // Point to current day's data - UDEN yesterday
-        if (currentDay === 'today') {
-            priceData = priceDataSet.today;
-        } else if (currentDay === 'tomorrow') {
-            priceData = priceDataSet.tomorrow;
-        }
-        
-        // Regenerate chart
-        generateChart();
-        
-        console.log('✅ STATUS: UI update completed');
+    // Check if Henrik has complete data for a specific day
+    function hasHenrikDataForDay(day) {
+        return henrikDataSet[day] && 
+               Array.isArray(henrikDataSet[day]) && 
+               henrikDataSet[day].length === 24 &&
+               henrikDataSet[day].some(price => price > 0);
     }
 
-    // Update Tesla price data structure - UDEN yesterday
-    function updatePriceDataSet(teslaData) {
-        console.log('🔄 STATUS: Updating Tesla price data...');
-        
-        if (teslaData.Elbil_price_data_today && Array.isArray(teslaData.Elbil_price_data_today)) {
-            priceDataSet.today = teslaData.Elbil_price_data_today;
-            console.log('✅ Tesla i dag priser loaded:', priceDataSet.today.length, 'timer');
-        } else {
-            priceDataSet.today = [];
-        }
-        
-        if (teslaData.Elbil_price_data_tomorrow && Array.isArray(teslaData.Elbil_price_data_tomorrow)) {
-            priceDataSet.tomorrow = teslaData.Elbil_price_data_tomorrow;
-            console.log('✅ Tesla i morgen priser loaded:', priceDataSet.tomorrow.length, 'timer');
-        } else {
-            priceDataSet.tomorrow = [];
-        }
-        
-        console.log('✅ STATUS: Tesla price data update completed');
-    }
+    console.log('✅ STEP 2: Henrik Solmøller data functions created');
 
-    // Update fixed charging info from Tesla
-    function updateFixedLadeinfo(teslaData) {
-        if (teslaData.Elbil_total_cost !== null && teslaData.Elbil_total_cost !== undefined && teslaData.Elbil_total_cost > 0) {
-            document.getElementById('totalCost').textContent = 
-                parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
-        } else {
-            document.getElementById('totalCost').textContent = '0 kr';
-        }
-        
-        if (teslaData.Elbil_kWh_needed !== null && teslaData.Elbil_kWh_needed !== undefined && teslaData.Elbil_kWh_needed > 0) {
-            document.getElementById('kWhNeeded').textContent = 
-                parseFloat(teslaData.Elbil_kWh_needed).toFixed(2).replace('.', ',') + ' kWh';
-        } else {
-            document.getElementById('kWhNeeded').textContent = '0 kWh';
-        }
-        
-        if (teslaData.Elbil_compact_schedule && teslaData.Elbil_compact_schedule !== '') {
-            document.getElementById('chargingStart').textContent = teslaData.Elbil_compact_schedule;
-        } else {
-            document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
+    // ==============================================
+    // STEP 6: BILLIGKWH API INTEGRATION
+    // ==============================================
+
+    // Fetch BilligkWh 3-day prices (i går, i dag, i morgen)
+    async function fetchBilligkWhData() {
+        try {
+            console.log('💰 Fetching BilligkWh prices...');
+            
+            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now(), {
+                headers: {
+                    'User-Agent': 'Tesla-Dashboard/1.0'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`BilligkWh API HTTP ${response.status}`);
+            }
+            
+            const billigkwhData = await response.json();
+            console.log('✅ BilligkWh data received');
+            console.log('📅 Available days:', billigkwhData.length);
+            
+            // Parse og organiser BilligkWh data i 3-dages struktur
+            updateBilligkWhDataSet(billigkwhData);
+            
+            return billigkwhData;
+            
+        } catch (error) {
+            console.warn('⚠️ BilligkWh data fetch failed:', error);
+            console.log('🔧 CORS Error? Falling back to Tesla + Henrik data');
+            // Clear BilligkWh data ved fejl
+            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+            return null;
         }
     }
 
-    // Update charging hours schedule - enhanced for 6 days UDEN yesterday
-    function updateChargingHours(teslaData) {
-        // Reset all days - reduced to 6 days
-        chargingSchedule.today = [];
-        chargingSchedule.tomorrow = [];
-        chargingSchedule.day2 = [];
-        chargingSchedule.day3 = [];
-        chargingSchedule.day4 = [];
-        chargingSchedule.day5 = [];
-        chargingSchedule.day6 = [];
-        
-        if (teslaData.Elbil_optimal_start_time && teslaData.Elbil_charging_hours && teslaData.Elbil_compact_schedule) {
-            try {
-                const startTime = teslaData.Elbil_optimal_start_time.toString();
-                const chargingHours = parseInt(teslaData.Elbil_charging_hours);
-                const schedule = teslaData.Elbil_compact_schedule.toString();
-                
-                if (startTime.includes(':')) {
-                    const startHour = parseInt(startTime.split(':')[0]);
-                    
-                    let targetDay = 'today';
-                    const scheduleLC = schedule.toLowerCase();
-                    if (scheduleLC.includes('i morgen')) {
-                        targetDay = 'tomorrow';
-                    } else if (scheduleLC.includes('i dag')) {
-                        targetDay = 'today';
-                    }
-                    // Fjernet "i går" håndtering
-                    
-                    for (let i = 0; i < chargingHours; i++) {
-                        const hour = (startHour + i) % 24;
-                        chargingSchedule[targetDay].push(hour);
+    // Organiser BilligkWh data i daglige arrays med Copenhagen timezone
+    function updateBilligkWhDataSet(billigkwhData) {
+        try {
+            console.log('🔄 Organizing BilligkWh data into 3-day structure...');
+            
+            // Clear existing data
+            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+            
+            if (!billigkwhData || !Array.isArray(billigkwhData)) {
+                console.warn('⚠️ Invalid BilligkWh data format - not an array');
+                return;
+            }
+            
+            // Get current Copenhagen time for day calculations
+            const now = new Date();
+            const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
+            const copenhagenToday = new Date(copenhagenNow.getFullYear(), copenhagenNow.getMonth(), copenhagenNow.getDate());
+            
+            console.log('🕒 Copenhagen current time:', copenhagenNow.toISOString());
+            console.log('📊 Processing BilligkWh data:', billigkwhData.length, 'days');
+            
+            // Process each day from BilligkWh - format: [{dato: "2025-06-06T00:00:00", priser: [24 prices]}]
+            billigkwhData.forEach((dayData, index) => {
+                try {
+                    if (!dayData.dato || !dayData.priser || !Array.isArray(dayData.priser)) {
+                        console.log(`⚠️ Invalid day data at index ${index}:`, dayData);
+                        return;
                     }
                     
-                    console.log(`⚡ Tesla charging scheduled for ${targetDay}:`, chargingSchedule[targetDay]);
-                }
-            } catch (error) {
-                console.log('⚠️ Could not parse Tesla charging hours:', error);
-            }
-        }
-    }
-
-    // Handle fetch errors - UDEN yesterday
-    function handleFetchError(error) {
-        hasLiveTeslaData = false;
-        priceDataSet.today = [];
-        priceDataSet.tomorrow = [];
-        
-        // Clear Henrik data ved fejl  
-        Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
-        
-        // Clear BilligkWh data ved fejl
-        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
-        
-        priceData = [];
-        
-        document.getElementById('totalCost').textContent = '0 kr';
-        document.getElementById('kWhNeeded').textContent = '0 kWh';
-        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
-        
-        // Reset charging schedule for all days - UDEN yesterday
-        chargingSchedule.today = [];
-        chargingSchedule.tomorrow = [];
-        chargingSchedule.day2 = [];
-        chargingSchedule.day3 = [];
-        chargingSchedule.day4 = [];
-        chargingSchedule.day5 = [];
-        chargingSchedule.day6 = [];
-        
-        generateChart();
-    }
-
-    // Battery optimization for mobile devices
-    function startBatteryOptimization() {
-        document.addEventListener('visibilitychange', function() {
-            if (document.hidden) {
-                isPageVisible = false;
-                if (refreshTimer) {
-                    clearInterval(refreshTimer);
-                    refreshTimer = null;
-                    console.log('⏸️ Auto-refresh paused');
-                }
-            } else {
-                isPageVisible = true;
-                if (!refreshTimer) {
-                    refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                    console.log('▶️ Auto-refresh resumed');
-                    fetchTeslaData();
-                }
-            }
-        });
-    }
-
-    console.log('✅ Tesla data integration and main fetch functions created');
-
-    // ==============================================
-    // STEP 5: SYSTEM HEALTH + DEBUG UTILITIES
-    // ==============================================
-
-    // System health check and diagnostics
-    function performSystemHealthCheck() {
-        const now = new Date();
-        const copenhagenTime = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
-        
-        const health = {
-            timestamp: now.toISOString(),
-            copenhagenTime: copenhagenTime.toISOString(),
-            timezoneOffset: now.getTimezoneOffset(),
-            eurRate: {
-                value: CONFIG.cachedEURRate,
-                lastUpdate: CONFIG.lastRateUpdate,
-                age: CONFIG.lastRateUpdate ? (Date.now() - CONFIG.lastRateUpdate.getTime()) / (60 * 60 * 1000) : 'unknown'
-            },
-            teslaData: {
-                available: hasLiveTeslaData,
-                days: Object.keys(priceDataSet).filter(day => 
-                    priceDataSet[day] && priceDataSet[day].length === 24
-                )
-            },
-            henrikData: {
-                available: Object.keys(henrikDataSet).some(day => hasHenrikDataForDay(day)),
-                days: Object.keys(henrikDataSet).filter(day => hasHenrikDataForDay(day))
-            },
-            calibration: {
-                active: calibratedTariffComponents !== null,
-                reliability: calibratedTariffComponents?.reliability || 'none'
-            },
-            currentDay: currentDay,
-            dataSource: getDataForDay(currentDay).source
-        };
-        
-        console.log('🏥 SYSTEM HEALTH CHECK:');
-        console.log('🕒 Copenhagen Time:', health.copenhagenTime);
-        console.log('🌍 Browser Time:', health.timestamp);
-        console.log('⏰ Timezone Offset:', health.timezoneOffset, 'minutes');
-        console.log('💱 EUR Rate:', health.eurRate);
-        console.log('🚗 Tesla Data:', health.teslaData);
-        console.log('📊 Henrik Data:', health.henrikData);
-        console.log('💰 BilligkWh Data:', health.billigkwhData);
-        console.log('🔧 Calibration:', health.calibration);
-        console.log('📅 Current:', health.currentDay, '->', health.dataSource);
-        
-        return health;
-    }
-
-    // Test all integrations
-    function runIntegrationTests() {
-        console.log('🧪 Running integration tests...');
-        
-        const tests = {
-            eurRateLoading: loadCachedRate(),
-            dayButtonGeneration: generateDayButtons().length === 7,
-            dataSourcePrioritization: getDataForDay('today').source !== undefined,
-            chartGeneration: document.getElementById('priceChart') !== null,
-            tooltipSystem: document.getElementById('tooltipPortal') !== null,
-            configValid: CONFIG.solmollerURL.includes('github'),
-            dataStructures: Object.keys(henrikDataSet).length === 7
-        };
-        
-        const passed = Object.values(tests).filter(result => result === true).length;
-        const total = Object.keys(tests).length;
-        
-        console.log(`🧪 Integration tests: ${passed}/${total} passed`);
-        console.log('📋 Test details:', tests);
-        
-        if (passed === total) {
-            console.log('✅ All systems operational!');
-        } else {
-            console.warn('⚠️ Some integration issues detected');
-        }
-        
-        return tests;
-    }
-
-    // Debug command interface
-    function createDebugInterface() {
-        window.debugDashboard = {
-            health: performSystemHealthCheck,
-            test: runIntegrationTests,
-            switchDay: switchDayEnhanced,
-            eurRate: () => CONFIG.cachedEURRate,
-            teslaData: () => priceDataSet,
-            henrikData: () => henrikDataSet,
-            billigkwhData: () => billigkwhDataSet,
-            calibration: () => calibratedTariffComponents,
-            refresh: fetchTeslaData,
-            config: () => CONFIG,
-            forceHenrikFetch: fetchSolmollerData,
-            forceBilligkwhFetch: fetchBilligkWhData,
-            forceEnhancement: enhanceAllHenrikData
-        };
-        
-        console.log('🔧 Debug interface created: window.debugDashboard');
-        console.log('💡 Try: window.debugDashboard.health()');
-    }
-
-    console.log('✅ STEP 5: System health and debug utilities created');
-
-    // ==============================================
-    // EVENT HANDLERS + INITIALIZATION
-    // ==============================================
-
-    // Enhanced initialization function
-    function init() {
-        console.log('🔄 STATUS: Initializing enhanced dashboard...');
-        
-        // Initialize with no data state
-        document.getElementById('totalCost').textContent = '0 kr';
-        document.getElementById('kWhNeeded').textContent = '0 kWh';
-        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
-        
-        // STEP 1: Load cached exchange rate ved startup
-        loadCachedRate();
-        
-        // STEP 1: Fetch fresh rate non-blocking
-        fetchExchangeRate().catch(err => console.log('EUR rate fetch failed:', err));
-        
-        // STEP 4: Generate 7-day selector
-        updateDaySelector();
-        
-        // STEP 4: Initialize enhanced data structures
-        Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
-        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
-        
-        // Clear all price data initially - UDEN yesterday
-        priceDataSet.today = [];
-        priceDataSet.tomorrow = [];
-        priceData = priceDataSet.today; // Default to today
-        
-        // Show empty state initially
-        generateChart();
-        
-        // Start battery optimization
-        startBatteryOptimization();
-        
-        // Create debug interface
-        createDebugInterface();
-        
-        // Try to fetch live Tesla data
-        fetchTeslaData();
-        
-        // STEP 5: Run integration tests
-        setTimeout(() => {
-            const testResults = runIntegrationTests();
-            console.log('🧪 Initial test results:', testResults);
-        }, 1000);
-        
-        // STEP 5: Perform health check
-        setTimeout(() => {
-            performSystemHealthCheck();
-        }, 2000);
-        
-        console.log('✅ STATUS: Enhanced dashboard initialization completed');
-        console.log('🎯 FINAL STATUS: All 5 steps implemented successfully!');
-        console.log('📊 Features: 7-day UI, EUR rate caching, Henrik integration, smart prioritization, enhanced UX');
-    }
-
-    // Hide tooltip when clicking outside bars
-    document.addEventListener('click', function(e) {
-        if (!e.target.classList.contains('bar')) {
-            hideTooltip();
-        }
-    });
-
-    // Handle page visibility for battery optimization
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            console.log('📱 Page hidden - pausing refresh');
-        } else {
-            console.log('📱 Page visible - resuming refresh');
-        }
-    });
-
-    // Error handling for unhandled promises
-    window.addEventListener('unhandledrejection', function(event) {
-        console.error('🚨 Unhandled promise rejection:', event.reason);
-        // Don't prevent default to keep error visible in console
-    });
-
-    // Error handling for general errors
-    window.addEventListener('error', function(event) {
-        console.error('🚨 JavaScript error:', event.error);
-    });
-
-    // Initialize when DOM is ready
-    document.addEventListener('DOMContentLoaded', init);
-
-    // Expose global functions for backward compatibility and debugging
-    window.switchDay = switchDay;
-    window.generateChart = generateChart;
-    window.fetchTeslaData = fetchTeslaData;
-
-    console.log('✅ STATUS: Event handlers and initialization setup completed');
-    console.log('🎯 READY: Tesla dashboard med Henrik Solmøller integration');
-    console.log('🔧 DEBUG: Brug window.debugDashboard.health() for system status');
-    console.log('📱 MOBILE: Optimeret til iOS webapp og responsive design');
-    console.log('🌍 TIMEZONE: Konfigureret til Copenhagen/Europe timezone');
-    console.log('💱 CURRENCY: EUR/DKK kurs cached i 24 timer');
-    console.log('📊 DATA: Tesla prioriteret, Henrik backup + 7-dages prognose');
-    console.log('⚡ CHARGING: Smart tariff calibration og price enhancement');
-
-    // Final status message
-    setTimeout(() => {
-        console.log('');
-        console.log('🎉 ================================================');
-        console.log('🎉 TESLA DASHBOARD ENHANCED - FULLY OPERATIONAL');  
-        console.log('🎉 ================================================');
-        console.log('📅 7-DAY FORECAST: ✅ Henrik Solmøller integration');
-        console.log('💱 EXCHANGE RATE: ✅ Daily EUR/DKK caching');
-        console.log('💰 PRICE ENHANCE: ✅ Spot + tariffer + moms');
-        console.log('🎯 SMART PRIORITY: ✅ Tesla → Henrik fallback');
-        console.log('🕒 TIMEZONE SAFE: ✅ Copenhagen time handling');
-        console.log('🔧 DEBUG READY: ✅ window.debugDashboard.*');
-        console.log('📱 MOBILE OPTIM: ✅ Battery + responsive design');
-        console.log('🎉 ================================================');
-    }, 3000);
-
-</script>
-</body>
-</html>
+                    // Parse BilligkWh date
+                    const billigkwhDate = new Date(dayData.dato);
+                    const billigkwhDay = new Date(billigkwhDate.getFullYear(), billigkwhDate.getMonth(), billigkwhDate.getDate());
+                    
+                    // Calculate day offset from Copenhagen today
+                    const daysDiff = Math.floor((billigkwhDay - copenhagenToday) / (24 * 60 * 60 * 1000));
+                    
+                    // Debug logging for first few entries
+                    if (index < 3) {
+                        console.log(`🔍 Day ${index}:`, {
+                            originalDate: dayData.dato,
+                            parsedDate: billigkwhDate.toISOString(),
+                            daysDiff: daysDiff,
+                            pricesLength: dayData.priser.length
+                        });
+                    }
+                    
+                    // Assign til korrekt dag - UDEN yesterday
+                    let targetDay = null;
