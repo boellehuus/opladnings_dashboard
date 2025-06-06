@@ -389,7 +389,10 @@
         
         // STEP 2: Henrik Solmøller Configuration
         solmollerURL: 'https://raw.githubusercontent.com/solmoller/Spotprisprognose/main/prognose.json',
-        solmollerArea: 'DK1' // Vestdanmark - som ønsket
+        solmollerArea: 'DK1', // Vestdanmark - som ønsket
+        
+        // STEP 6: BilligkWh API Configuration
+        billigkwhURL: 'https://billigkwh.dk/api/Priser/HentPriser?sted=DK1&netselskab=vores_elnet&produkt=greenbow_elaftale'
     };
 
     // 3-DAY TESLA PRICE DATA STRUCTURE (original)
@@ -408,6 +411,13 @@
         day4: [],
         day5: [],
         day6: []
+    };
+
+    // STEP 6: 3-DAY BILLIGKWH DATA STRUCTURE  
+    const billigkwhDataSet = {
+        yesterday: [],
+        today: [],
+        tomorrow: []
     };
 
     // Enhanced charging schedule for 7 days
@@ -674,6 +684,129 @@
     console.log('✅ STEP 2: Henrik Solmøller data functions created');
 
     // ==============================================
+    // STEP 6: BILLIGKWH API INTEGRATION
+    // ==============================================
+
+    // Fetch BilligkWh 3-day prices (i går, i dag, i morgen)
+    async function fetchBilligkWhData() {
+        try {
+            console.log('💰 Fetching BilligkWh prices...');
+            
+            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now(), {
+                headers: {
+                    'User-Agent': 'Tesla-Dashboard/1.0'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`BilligkWh API HTTP ${response.status}`);
+            }
+            
+            const billigkwhData = await response.json();
+            console.log('✅ BilligkWh data received');
+            console.log('📅 Available days:', billigkwhData.length);
+            
+            // Parse og organiser BilligkWh data i 3-dages struktur
+            updateBilligkWhDataSet(billigkwhData);
+            
+            return billigkwhData;
+            
+        } catch (error) {
+            console.warn('⚠️ BilligkWh data fetch failed:', error);
+            console.log('🔧 CORS Error? Falling back to Tesla + Henrik data');
+            // Clear BilligkWh data ved fejl
+            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+            return null;
+        }
+    }
+
+    // Organiser BilligkWh data i daglige arrays med Copenhagen timezone
+    function updateBilligkWhDataSet(billigkwhData) {
+        try {
+            console.log('🔄 Organizing BilligkWh data into 3-day structure...');
+            
+            // Clear existing data
+            Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+            
+            if (!billigkwhData || !Array.isArray(billigkwhData)) {
+                console.warn('⚠️ Invalid BilligkWh data format - not an array');
+                return;
+            }
+            
+            // Get current Copenhagen time for day calculations
+            const now = new Date();
+            const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
+            const copenhagenToday = new Date(copenhagenNow.getFullYear(), copenhagenNow.getMonth(), copenhagenNow.getDate());
+            
+            console.log('🕒 Copenhagen current time:', copenhagenNow.toISOString());
+            console.log('📊 Processing BilligkWh data:', billigkwhData.length, 'days');
+            
+            // Process each day from BilligkWh - format: [{dato: "2025-06-06T00:00:00", priser: [24 prices]}]
+            billigkwhData.forEach((dayData, index) => {
+                try {
+                    if (!dayData.dato || !dayData.priser || !Array.isArray(dayData.priser)) {
+                        console.log(`⚠️ Invalid day data at index ${index}:`, dayData);
+                        return;
+                    }
+                    
+                    // Parse BilligkWh date
+                    const billigkwhDate = new Date(dayData.dato);
+                    const billigkwhDay = new Date(billigkwhDate.getFullYear(), billigkwhDate.getMonth(), billigkwhDate.getDate());
+                    
+                    // Calculate day offset from Copenhagen today
+                    const daysDiff = Math.floor((billigkwhDay - copenhagenToday) / (24 * 60 * 60 * 1000));
+                    
+                    // Debug logging for first few entries
+                    if (index < 3) {
+                        console.log(`🔍 Day ${index}:`, {
+                            originalDate: dayData.dato,
+                            parsedDate: billigkwhDate.toISOString(),
+                            daysDiff: daysDiff,
+                            pricesLength: dayData.priser.length
+                        });
+                    }
+                    
+                    // Assign til korrekt dag
+                    let targetDay = null;
+                    if (daysDiff === -1) targetDay = 'yesterday';
+                    else if (daysDiff === 0) targetDay = 'today';
+                    else if (daysDiff === 1) targetDay = 'tomorrow';
+                    
+                    if (targetDay && dayData.priser.length === 24) {
+                        billigkwhDataSet[targetDay] = [...dayData.priser]; // Copy array
+                        
+                        const avgPrice = dayData.priser.reduce((sum, p) => sum + p, 0) / 24;
+                        const minPrice = Math.min(...dayData.priser);
+                        const maxPrice = Math.max(...dayData.priser);
+                        
+                        console.log(`✅ BilligkWh ${targetDay}: 24 hours, ${minPrice.toFixed(3)}-${maxPrice.toFixed(3)} kr/kWh (avg ${avgPrice.toFixed(3)})`);
+                    } else if (targetDay) {
+                        console.log(`⚠️ BilligkWh ${targetDay}: Invalid data - ${dayData.priser.length} hours instead of 24`);
+                    }
+                    
+                } catch (parseError) {
+                    console.warn('⚠️ Could not parse BilligkWh day:', parseError, dayData);
+                }
+            });
+            
+            console.log('✅ BilligkWh data organization completed');
+            
+        } catch (error) {
+            console.error('❌ Error organizing BilligkWh data:', error);
+        }
+    }
+
+    // Check if BilligkWh has complete data for a specific day
+    function hasBilligkWhDataForDay(day) {
+        return billigkwhDataSet[day] && 
+               Array.isArray(billigkwhDataSet[day]) && 
+               billigkwhDataSet[day].length === 24 &&
+               billigkwhDataSet[day].some(price => price > 0);
+    }
+
+    console.log('✅ STEP 6: BilligkWh API integration functions created');
+
+    // ==============================================
     // STEP 3: PRICE ENHANCEMENT + TARIFF CALCULATION
     // ==============================================
 
@@ -874,9 +1007,19 @@
         return dayButtons;
     }
 
-    // Smart data prioritization: Tesla first, then enhanced Henrik
+    // Smart data prioritization: BilligkWh → Tesla → Henrik
     function getDataForDay(day) {
-        // Tesla har altid prioritet hvis tilgængelig og komplet
+        // PRIORITET 1: BilligkWh data (komplette danske priser for i går, i dag, i morgen)
+        if (hasBilligkWhDataForDay(day)) {
+            return {
+                source: 'BilligkWh',
+                data: billigkwhDataSet[day],
+                reliable: true,
+                color: 'blue'
+            };
+        }
+        
+        // PRIORITET 2: Tesla data (hvis tilgængelig og komplet)
         if (priceDataSet[day] && Array.isArray(priceDataSet[day]) && priceDataSet[day].length === 24) {
             const hasValidData = priceDataSet[day].some(price => price > 0);
             if (hasValidData) {
@@ -889,7 +1032,7 @@
             }
         }
         
-        // Ellers brug enhanced Henrik data hvis tilgængeligt
+        // PRIORITET 3: Enhanced Henrik data (7-dages backup)
         if (hasHenrikDataForDay(day)) {
             const reliabilityMap = {
                 'yesterday': true,
@@ -1237,19 +1380,20 @@
     // TESLA DATA INTEGRATION + MAIN FETCH FUNCTIONS
     // ==============================================
 
-    // Enhanced Tesla data fetching with Henrik integration
+    // Enhanced Tesla data fetching with BilligkWh + Henrik integration
     async function fetchTeslaData() {
         try {
-            console.log('🔄 STATUS: Fetching Tesla data from webhook...');
+            console.log('🔄 STATUS: Fetching all data sources...');
             
-            // Parallel fetch Tesla data and EUR rate
-            const [teslaResponse, eurRate] = await Promise.all([
+            // PARALLEL FETCH: Tesla, EUR rate, BilligkWh
+            const [teslaResponse, eurRate, billigkwhData] = await Promise.all([
                 fetch(CONFIG.dataURL + '?t=' + Date.now()),
-                fetchExchangeRate()
+                fetchExchangeRate(),
+                fetchBilligkWhData()
             ]);
             
             if (!teslaResponse.ok) {
-                throw new Error(`HTTP ${teslaResponse.status}`);
+                throw new Error(`Tesla HTTP ${teslaResponse.status}`);
             }
             
             const teslaData = await teslaResponse.json();
@@ -1258,7 +1402,14 @@
             // Standard Tesla data update
             updateUIWithTeslaData(teslaData);
             
-            // STEP 3: Try to fetch and calibrate with Henrik data
+            // STEP 6: BilligkWh integration result
+            if (billigkwhData) {
+                console.log('✅ BilligkWh integration successful - using for i går/i dag');
+            } else {
+                console.log('⚠️ BilligkWh failed - falling back to Tesla + Henrik');
+            }
+            
+            // STEP 3: Henrik data fetch and calibration
             try {
                 console.log('🔄 Attempting Henrik data fetch and calibration...');
                 const henrikData = await fetchSolmollerData();
@@ -1282,7 +1433,7 @@
                 
             } catch (henrikError) {
                 console.warn('⚠️ Henrik integration failed:', henrikError);
-                // Continue with Tesla-only functionality
+                // Continue with BilligkWh + Tesla functionality
             }
             
             if (!refreshTimer) {
@@ -1291,7 +1442,7 @@
             }
             
         } catch (error) {
-            console.error('❌ STATUS: Webhook fetch error:', error);
+            console.error('❌ STATUS: Data fetch error:', error);
             handleFetchError(error);
         }
     }
@@ -1431,6 +1582,9 @@
         // Clear Henrik data ved fejl  
         Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
         
+        // Clear BilligkWh data ved fejl
+        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
+        
         priceData = [];
         
         document.getElementById('totalCost').textContent = '0 kr';
@@ -1515,6 +1669,7 @@
         console.log('💱 EUR Rate:', health.eurRate);
         console.log('🚗 Tesla Data:', health.teslaData);
         console.log('📊 Henrik Data:', health.henrikData);
+        console.log('💰 BilligkWh Data:', health.billigkwhData);
         console.log('🔧 Calibration:', health.calibration);
         console.log('📅 Current:', health.currentDay, '->', health.dataSource);
         
@@ -1559,10 +1714,12 @@
             eurRate: () => CONFIG.cachedEURRate,
             teslaData: () => priceDataSet,
             henrikData: () => henrikDataSet,
+            billigkwhData: () => billigkwhDataSet,
             calibration: () => calibratedTariffComponents,
             refresh: fetchTeslaData,
             config: () => CONFIG,
             forceHenrikFetch: fetchSolmollerData,
+            forceBilligkwhFetch: fetchBilligkWhData,
             forceEnhancement: enhanceAllHenrikData
         };
         
@@ -1596,6 +1753,7 @@
         
         // STEP 4: Initialize enhanced data structures
         Object.keys(henrikDataSet).forEach(day => henrikDataSet[day] = []);
+        Object.keys(billigkwhDataSet).forEach(day => billigkwhDataSet[day] = []);
         
         // Clear all price data initially
         priceDataSet.yesterday = [];
