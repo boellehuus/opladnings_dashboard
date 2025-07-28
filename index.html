@@ -860,7 +860,20 @@
         return dayButtons;
     }
 
-    // Smart data prioritization: BilligkWh → Tesla → Henrik
+    // ==============================================
+// MANGLED FUNKTION: hasHenrikDataForDay
+// ==============================================
+
+function hasHenrikDataForDay(day) {
+    return (
+        henrikDataSet[day] &&
+        Array.isArray(henrikDataSet[day]) &&
+        henrikDataSet[day].length === 24 &&
+        henrikDataSet[day].some(price => price > 0)
+    );
+}
+
+// Smart data prioritization: BilligkWh → Tesla → Henrik
     function getDataForDay(day) {
         // PRIORITET 1: BilligkWh data (komplette danske priser for i går, i dag, i morgen)
         if (hasBilligkWhDataForDay(day)) {
