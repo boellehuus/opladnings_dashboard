@@ -1252,7 +1252,7 @@ function hasHenrikDataForDay(day) {
             const [teslaResponse, eurRate, billigkwhData] = await Promise.all([
                 fetch(CONFIG.dataURL + '?t=' + Date.now()),
                 fetchExchangeRate(),
-                fetchBilligkWhData()
+            const billigkwhData = null; // Tilføj denne linje
             ]);
             
             if (!teslaResponse.ok) {
