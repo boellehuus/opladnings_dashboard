@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="da">
 <head>
     <meta charset="UTF-8">
@@ -6,15 +7,16 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="mobile-web-app-capable" content="yes">
-    <title>Tesla Ladeplan Dashboard</title>
+    <title>Tesla Ladeplan</title>
     <!-- 
-    TESLA DASHBOARD - FASE 2 FIXED: SIMPLE DATA FLOW + FALLBACK
-    ===========================================================
-    ✅ Fase 1: Simple data flow som virkede (bibeholdt)
-    ✅ Fase 2: Fallback system tilføjet (forenklet)
-    ✅ Tooltip: 2 decimaler implementeret
-    ✅ switchDay: Fejl rettet
-    -->
+    TESLA DASHBOARD FOR HOMEY iOS WIDGETS - TILBAGE TIL WORKING VERSION
+    ==================================================================
+
+```
+🔧 RETTELSE: Tilbage til originale fungerende onclick approach
+📱 Baseret på det script hvor knapperne virkede perfekt
+💰 Tilføjet 3-dages price support uden at ødelægge funktionaliteten
+-->
 <style>
     * {
         margin: 0;
@@ -46,8 +48,15 @@
     }
     
     @media (max-width: 480px) {
-        body { padding: 8px; }
-        .container { width: 100%; padding: 14px; border-radius: 12px; }
+        body {
+            padding: 8px;
+        }
+        
+        .container {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+        }
     }
     
     .time-selector {
@@ -56,18 +65,10 @@
         border-radius: 12px;
         padding: 3px;
         margin-bottom: 16px;
-        overflow-x: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
-    
-    .time-selector::-webkit-scrollbar {
-        display: none;
     }
     
     .time-option {
         flex: 1;
-        min-width: 55px;
         text-align: center;
         padding: 8px 12px;
         border-radius: 9px;
@@ -79,10 +80,12 @@
         -webkit-user-select: none;
         touch-action: manipulation;
         color: #86868b;
-        white-space: nowrap;
     }
     
-    .time-option:active { transform: scale(0.96); }
+    .time-option:active {
+        transform: scale(0.96);
+    }
+    
     .time-option.active {
         background: white;
         color: #1d1d1f;
@@ -101,7 +104,10 @@
     
     .empty-state {
         position: absolute;
-        top: 0; left: 0; right: 0; bottom: 24px;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 24px;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -141,29 +147,58 @@
         min-height: 4px;
     }
     
-    .bar:hover { transform: translateY(-1px); filter: brightness(0.9); }
-    .bar:active { transform: translateY(0px); }
-    .bar.touch-active { transform: translateY(-1px); filter: brightness(0.9); }
+    .bar:hover {
+        transform: translateY(-1px);
+        filter: brightness(0.9);
+    }
+    
+    .bar:active {
+        transform: translateY(0px);
+    }
+    
+    .bar.touch-active {
+        transform: translateY(-1px);
+        filter: brightness(0.9);
+    }
     
     .bar.charging {
-        background: repeating-linear-gradient(45deg, #ffffff, #ffffff 3px, rgba(48, 209, 88, 0.7) 3px, rgba(48, 209, 88, 0.7) 6px);
+        background: repeating-linear-gradient(
+            45deg,
+            #ffffff,
+            #ffffff 3px,
+            rgba(48, 209, 88, 0.7) 3px,
+            rgba(48, 209, 88, 0.7) 6px
+        );
         box-shadow: 0 0 8px rgba(48, 209, 88, 0.4);
         border: 1px solid rgba(48, 209, 88, 0.8);
         animation: charging-pulse 2s infinite;
     }
     
     .bar.charging.past {
-        background: repeating-linear-gradient(45deg, #f0f0f0, #f0f0f0 3px, rgba(36, 138, 61, 0.4) 3px, rgba(36, 138, 61, 0.4) 6px);
-        opacity: 0.6; animation: none;
+        background: repeating-linear-gradient(
+            45deg,
+            #f0f0f0,
+            #f0f0f0 3px,
+            rgba(36, 138, 61, 0.4) 3px,
+            rgba(36, 138, 61, 0.4) 6px
+        );
+        opacity: 0.6;
+        animation: none;
     }
     
-    .bar.current-time { background: #9370DB; }
+    .bar.current-time {
+        background: #9370DB;
+    }
+    
     .bar.green { background: #30d158; }
     .bar.green.past { background: #248a3d; opacity: 0.6; }
+    
     .bar.orange { background: #ff9500; }
     .bar.orange.past { background: #cc7700; opacity: 0.6; }
+    
     .bar.red { background: #ff3b30; }
     .bar.red.past { background: #cc2e26; opacity: 0.6; }
+    
     .bar.purple { background: #af52de; }
     .bar.purple.past { background: #8c42b1; opacity: 0.6; }
     
@@ -189,27 +224,14 @@
         pointer-events: none;
         transition: opacity 0.2s ease;
         z-index: 10000;
-        top: 0; left: 0;
+        top: 0;
+        left: 0;
         backdrop-filter: blur(10px);
     }
     
-    .tooltip-portal.visible { opacity: 1; }
-    
-    .data-source {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        font-size: 10px;
-        color: #86868b;
-        margin-bottom: 12px;
-        padding: 4px 8px;
-        background: #f8f8f8;
-        border-radius: 6px;
-        border: 1px solid #e8e8e8;
+    .tooltip-portal.visible {
+        opacity: 1;
     }
-    
-    .reliability-indicator { font-size: 12px; font-weight: bold; }
     
     .summary-card {
         background: #f2f2f7;
@@ -240,7 +262,10 @@
         line-height: 1.1;
     }
     
-    .summary-divider { color: #86868b; font-weight: 400; }
+    .summary-divider {
+        color: #86868b;
+        font-weight: 400;
+    }
     
     .charging-start {
         font-size: 11px;
@@ -263,323 +288,246 @@
         }
     }
 </style>
+```
+
 </head>
 <body>
     <div class="container">
+        <!-- DAY SELECTOR - TILBAGE TIL ORIGINAL ONCLICK -->
         <div class="time-selector">
+            <div class="time-option" onclick="switchDay('yesterday')">I går</div>
             <div class="time-option active" onclick="switchDay('today')">I dag</div>
             <div class="time-option" onclick="switchDay('tomorrow')">I morgen</div>
         </div>
 
-        <div class="chart-container">
-            <div class="chart" id="priceChart"></div>
-            <div class="time-labels">
-                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
-            </div>
-        </div>
-        
-        <div class="data-source">
-            <span id="dataSource">Indlæser...</span>
-            <span id="reliability" class="reliability-indicator">●</span>
-        </div>
-        
-        <div class="summary-card">
-            <div class="summary-title">Ladeinfo</div>
-            <div class="summary-price">
-                <span id="kWhNeeded">0 kWh</span>
-                <span class="summary-divider">|</span>
-                <span id="totalCost">0 kr</span>
-            </div>
-            <div class="charging-start" id="chargingStart">Indlæser...</div>
+```
+    <div class="chart-container">
+        <div class="chart" id="priceChart"></div>
+        <div class="time-labels">
+            <span>00</span>
+            <span>06</span>
+            <span>12</span>
+            <span>18</span>
+            <span>24</span>
         </div>
     </div>
+    
+    <div class="summary-card">
+        <div class="summary-title">Ladeinfo</div>
+        <div class="summary-price">
+            <span id="kWhNeeded">0 kWh</span>
+            <span class="summary-divider">|</span>
+            <span id="totalCost">0 kr</span>
+        </div>
+        <div class="charging-start" id="chargingStart">
+            Ladning ikke planlagt
+        </div>
+    </div>
+</div>
 
-    <div id="tooltipPortal" class="tooltip-portal"></div>
+<div id="tooltipPortal" class="tooltip-portal"></div>
 
 <script>
+    /* 
+     * 🔄 STATUS: Genskaber originale fungerende script struktur
+     */
+    
     // ==============================================
-    // FASE 2 FIXED: SIMPLE DATA FLOW + FALLBACK
+    // GLOBAL STATE - BASERET PÅ ORIGINAL
     // ==============================================
-
-    // GLOBAL STATE (samme som Fase 1 - virkede!)
     let currentDay = 'today';
     let currentTeslaData = null;
     let refreshTimer = null;
     let isPageVisible = true;
     let hasLiveTeslaData = false;
-
-    // KONFIGURATION
+    
     const CONFIG = {
         refreshInterval: 60000,
         retryAttempts: 3,
         retryDelay: 2000,
-        dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/elbil-data.json',
-        billigkwhURL: 'https://billigkwh.dk/api/Priser/HentPriser?sted=DK1&netselskab=vores_elnet&produkt=greenbow_elaftale',
-        exchangeRateURL: 'https://api.exchangerate-api.com/v4/latest/EUR',
-        exchangeRateFallback: 7.44,
-        cachedEURRate: 7.44,
-        lastRateUpdate: null
+        dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/elbil-data.json'
     };
-
-    // DATA STRUKTURER (samme som Fase 1 - virkede!)
-    const priceDataSet = { today: [], tomorrow: [] };
-    const chargingSchedule = { today: [], tomorrow: [] };
+    
+    // 3-DAY PRICE DATA STRUCTURE
+    const priceDataSet = {
+        yesterday: [],
+        today: [],
+        tomorrow: []
+    };
+    
+    const chargingSchedule = {
+        yesterday: [],
+        today: [],
+        tomorrow: []
+    };
+    
+    // Current price data (points to one of the above based on currentDay)
     let priceData = [];
-
-    console.log('🔄 FASE 2 FIXED: Tesla Dashboard med simple data flow...');
-
-    // Eksponér switchDay funktion øjeblikkeligt
-    window.switchDay = function(day) {
-        try {
-            console.log('🔄 Switching to day:', day);
-            
-            // Update active button
-            document.querySelectorAll('.time-option').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Find and activate correct button
-            const buttons = document.querySelectorAll('.time-option');
-            buttons.forEach(btn => {
-                if ((day === 'today' && btn.textContent.includes('I dag')) ||
-                    (day === 'tomorrow' && btn.textContent.includes('morgen'))) {
-                    btn.classList.add('active');
-                }
-            });
-            
-            // Update current day
-            currentDay = day;
-            
-            // Update data (FASE 1 STYLE - SIMPLE!)
-            priceData = priceDataSet[day] || [];
-            
-            console.log(`✅ Switched to ${day}:`, priceData.length, 'prices');
-            
-            // Regenerate chart
-            generateChart();
-            
-        } catch (error) {
-            console.error('❌ Error switching day:', error);
-            priceData = [];
-            generateChart();
-        }
-    };
-
+    
+    console.log('🔄 STATUS: Global state og data strukturer oprettet');
+    
     // ==============================================
-    // FASE 2: BILLIGKWH FALLBACK (FORENKLET)
+    // ORIGINAL SWITCHDAY FUNCTION - DER VIRKEDE!
     // ==============================================
-
-    async function fetchBilligkWhData() {
-        try {
-            console.log('⚡ Fetching BilligkWh fallback data...');
-            
-            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now());
-            if (!response.ok) throw new Error(`BilligkWh HTTP ${response.status}`);
-            
-            const data = await response.json();
-            console.log('✅ BilligkWh data received:', data.length, 'days');
-            
-            // SIMPLE processing - lige som Fase 1
-            return await processBilligkWhData(data);
-            
-        } catch (error) {
-            console.warn('⚠️ BilligkWh fetch failed:', error.message);
-            return null;
+    function switchDay(day) {
+        console.log('🔄 STATUS: switchDay kaldt for:', day);
+        
+        // Original approach - update active button
+        document.querySelectorAll('.time-option').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        
+        event.target.classList.add('active');
+        
+        // Update current day
+        currentDay = day;
+        
+        // TILFØJET: Point til korrekte price data for dagen
+        if (day === 'yesterday') {
+            priceData = priceDataSet.yesterday;
+        } else if (day === 'today') {
+            priceData = priceDataSet.today;
+        } else if (day === 'tomorrow') {
+            priceData = priceDataSet.tomorrow;
         }
+        
+        // Regenerate chart (original approach)
+        generateChart();
+        
+        console.log('✅ STATUS: switchDay fuldført for', day, '- priceData length:', priceData.length);
     }
-
-    async function processBilligkWhData(rawData) {
-        try {
-            const result = { today: [], tomorrow: [] };
-            const now = new Date();
-            const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
-            const todayDateStr = copenhagenNow.toISOString().split('T')[0];
-            const tomorrowDate = new Date(copenhagenNow);
-            tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-            const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
-
-            const eurRate = await fetchExchangeRate();
-
-            for (const dayData of rawData) {
-                if (!dayData.Dato || !dayData.Priser) continue;
-
-                const dataDate = dayData.Dato.split('T')[0];
-                let targetArray = null;
-                
-                if (dataDate === todayDateStr) {
-                    targetArray = result.today;
-                } else if (dataDate === tomorrowDateStr) {
-                    targetArray = result.tomorrow;
-                }
-
-                if (targetArray && Array.isArray(dayData.Priser)) {
-                    const sortedPrices = dayData.Priser
-                        .sort((a, b) => a.StartTid.localeCompare(b.StartTid))
-                        .map(pricePoint => {
-                            const eurPrice = parseFloat(pricePoint.Pris) || 0;
-                            const dkkPrice = (eurPrice / 1000) * eurRate;
-                            return Math.round(dkkPrice * 1000) / 1000;
-                        });
-
-                    while (sortedPrices.length < 24) {
-                        sortedPrices.push(sortedPrices[sortedPrices.length - 1] || 2.5);
-                    }
-
-                    targetArray.splice(0, 24, ...sortedPrices.slice(0, 24));
-                }
-            }
-
-            return result;
-
-        } catch (error) {
-            console.error('❌ Error processing BilligkWh data:', error);
-            return null;
-        }
-    }
-
-    async function fetchExchangeRate() {
-        try {
-            const now = new Date();
-            const lastUpdate = CONFIG.lastRateUpdate;
-            
-            if (lastUpdate && (now - lastUpdate) < 24 * 60 * 60 * 1000) {
-                return CONFIG.cachedEURRate;
-            }
-            
-            const response = await fetch(CONFIG.exchangeRateURL + '?t=' + Date.now());
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.rates && data.rates.DKK) {
-                    const eurRate = parseFloat(data.rates.DKK);
-                    if (eurRate > 6 && eurRate < 9) {
-                        CONFIG.cachedEURRate = eurRate;
-                        CONFIG.lastRateUpdate = now;
-                        return eurRate;
-                    }
-                }
-            }
-            
-            throw new Error('Invalid API response');
-            
-        } catch (error) {
-            console.warn('⚠️ EUR rate fetch failed, using fallback:', CONFIG.exchangeRateFallback);
-            return CONFIG.exchangeRateFallback;
-        }
-    }
-
+    
+    console.log('🔄 STATUS: switchDay funktion defineret (original working version)');
+    
     // ==============================================
-    // TESLA DATA (FASE 1 STYLE - SIMPLE!)
+    // TOOLTIP SYSTEM - ORIGINAL APPROACH
     // ==============================================
-
+    const tooltipPortal = document.getElementById('tooltipPortal');
+    let activeBar = null;
+    
+    function showTooltip(barElement, text) {
+        activeBar = barElement;
+        const rect = barElement.getBoundingClientRect();
+        
+        tooltipPortal.textContent = text;
+        tooltipPortal.style.left = (rect.left + rect.width / 2) + 'px';
+        tooltipPortal.style.top = (rect.top - 8) + 'px';
+        tooltipPortal.style.transform = 'translate(-50%, -100%)';
+        tooltipPortal.classList.add('visible');
+    }
+    
+    function hideTooltip() {
+        activeBar = null;
+        tooltipPortal.classList.remove('visible');
+    }
+    
+    console.log('🔄 STATUS: Tooltip system oprettet');
+    
+    // ==============================================
+    // DATA AVAILABILITY - TILPASSET TIL 3-DAY
+    // ==============================================
+    function hasDataForDay(day) {
+        let dayPrices;
+        if (day === 'yesterday') {
+            dayPrices = priceDataSet.yesterday;
+        } else if (day === 'today') {
+            dayPrices = priceDataSet.today;
+        } else if (day === 'tomorrow') {
+            dayPrices = priceDataSet.tomorrow;
+        }
+        
+        return dayPrices && Array.isArray(dayPrices) && dayPrices.length === 24;
+    }
+    
+    console.log('🔄 STATUS: Data availability check oprettet');
+    
+    // ==============================================
+    // WEBHOOK DATA FETCHING
+    // ==============================================
     async function fetchTeslaData() {
         try {
-            console.log('🔄 Fetching Tesla data...');
+            console.log('🔄 STATUS: Fetching Tesla data from webhook...');
             
-            const teslaResponse = await fetch(CONFIG.dataURL + '?t=' + Date.now());
+            const response = await fetch(CONFIG.dataURL + '?t=' + Date.now());
             
-            if (!teslaResponse.ok) {
-                throw new Error(`Tesla HTTP ${teslaResponse.status}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
             }
             
-            const teslaData = await teslaResponse.json();
-            console.log('✅ Tesla data received');
+            const teslaData = await response.json();
+            console.log('🔄 STATUS: Tesla data received, updating UI...');
             
-            // FASE 1 STYLE - DIRECT UPDATE!
             updateUIWithTeslaData(teslaData);
             
             if (!refreshTimer) {
                 refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                console.log('🔄 Auto-refresh timer started');
+                console.log('🔄 STATUS: Auto-refresh timer started');
             }
             
         } catch (error) {
-            console.error('❌ Tesla data fetch error:', error);
-            
-            // FASE 2: Fallback til BilligkWh
-            await attemptBilligkWhFallback();
-        }
-    }
-
-    // FASE 2: Fallback system
-    async function attemptBilligkWhFallback() {
-        try {
-            console.log('🔄 Attempting BilligkWh fallback...');
-            
-            const billigkWhData = await fetchBilligkWhData();
-            
-            if (billigkWhData) {
-                console.log('✅ BilligkWh fallback successful');
-                
-                // FASE 1 STYLE - DIRECT UPDATE!
-                priceDataSet.today = billigkWhData.today;
-                priceDataSet.tomorrow = billigkWhData.tomorrow;
-                
-                // Clear Tesla-specific data
-                document.getElementById('totalCost').textContent = 'N/A';
-                document.getElementById('kWhNeeded').textContent = 'N/A';
-                document.getElementById('chargingStart').textContent = 'Kun priser tilgængelige';
-                
-                chargingSchedule.today = [];
-                chargingSchedule.tomorrow = [];
-                
-                updateDataSourceIndicator('BilligkWh (backup)', false);
-                
-                // FASE 1 STYLE - SIMPLE UPDATE!
-                priceData = priceDataSet[currentDay] || [];
-                generateChart();
-                
-            } else {
-                throw new Error('BilligkWh fallback failed');
-            }
-            
-        } catch (error) {
-            console.error('❌ Complete data failure:', error);
+            console.error('❌ STATUS: Webhook fetch error:', error);
             handleFetchError(error);
         }
     }
-
-    // FASE 1 STYLE - updateUIWithTeslaData (samme som virkede!)
+    
     function updateUIWithTeslaData(teslaData) {
-        console.log('🔄 Updating UI with Tesla data...');
+        console.log('🔄 STATUS: Updating UI with Tesla data...');
         
         currentTeslaData = teslaData;
         hasLiveTeslaData = true;
         
-        updateSummaryInfo(teslaData);
-        updatePriceDataSet(teslaData);
-        updateChargingHours(teslaData);
-        updateDataSourceIndicator('Tesla', true);
+        // Update fixed ladeinfo
+        updateFixedLadeinfo(teslaData);
         
-        // FASE 1 STYLE - DIRECT!
-        priceData = priceDataSet[currentDay] || [];
+        // Update 3-day price data
+        updatePriceDataSet(teslaData);
+        
+        // Update charging hours
+        updateChargingHours(teslaData);
+        
+        // Point to current day's data
+        if (currentDay === 'yesterday') {
+            priceData = priceDataSet.yesterday;
+        } else if (currentDay === 'today') {
+            priceData = priceDataSet.today;
+        } else if (currentDay === 'tomorrow') {
+            priceData = priceDataSet.tomorrow;
+        }
+        
+        // Regenerate chart
         generateChart();
         
-        console.log('✅ Tesla UI update completed');
+        console.log('✅ STATUS: UI update fuldført');
     }
-
-    // FASE 1 STYLE - updatePriceDataSet (samme som virkede!)
+    
     function updatePriceDataSet(teslaData) {
-        console.log('🔄 Updating price data set...');
+        console.log('🔄 STATUS: Updating 3-day price data...');
         
-        if (teslaData.Elbil_price_data && Array.isArray(teslaData.Elbil_price_data)) {
-            priceDataSet.today = teslaData.Elbil_price_data;
-            console.log('✅ Today prices loaded:', priceDataSet.today.length, 'hours');
+        if (teslaData.Elbil_price_data_yesterday && Array.isArray(teslaData.Elbil_price_data_yesterday)) {
+            priceDataSet.yesterday = teslaData.Elbil_price_data_yesterday;
+            console.log('✅ I går priser loaded:', priceDataSet.yesterday.length, 'timer');
+        } else {
+            priceDataSet.yesterday = [];
+        }
+        
+        if (teslaData.Elbil_price_data_today && Array.isArray(teslaData.Elbil_price_data_today)) {
+            priceDataSet.today = teslaData.Elbil_price_data_today;
+            console.log('✅ I dag priser loaded:', priceDataSet.today.length, 'timer');
         } else {
             priceDataSet.today = [];
         }
         
         if (teslaData.Elbil_price_data_tomorrow && Array.isArray(teslaData.Elbil_price_data_tomorrow)) {
             priceDataSet.tomorrow = teslaData.Elbil_price_data_tomorrow;
-            console.log('✅ Tomorrow prices loaded:', priceDataSet.tomorrow.length, 'hours');
+            console.log('✅ I morgen priser loaded:', priceDataSet.tomorrow.length, 'timer');
         } else {
             priceDataSet.tomorrow = [];
         }
         
-        console.log('✅ Price data set updated');
+        console.log('✅ STATUS: 3-day price data update fuldført');
     }
-
-    function updateSummaryInfo(teslaData) {
+    
+    function updateFixedLadeinfo(teslaData) {
         if (teslaData.Elbil_total_cost !== null && teslaData.Elbil_total_cost !== undefined && teslaData.Elbil_total_cost > 0) {
             document.getElementById('totalCost').textContent = 
                 parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
@@ -600,8 +548,10 @@
             document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
         }
     }
-
+    
     function updateChargingHours(teslaData) {
+        // Reset all days
+        chargingSchedule.yesterday = [];
         chargingSchedule.today = [];
         chargingSchedule.tomorrow = [];
         
@@ -618,6 +568,10 @@
                     const scheduleLC = schedule.toLowerCase();
                     if (scheduleLC.includes('i morgen')) {
                         targetDay = 'tomorrow';
+                    } else if (scheduleLC.includes('i dag')) {
+                        targetDay = 'today';
+                    } else if (scheduleLC.includes('i går')) {
+                        targetDay = 'yesterday';
                     }
                     
                     for (let i = 0; i < chargingHours; i++) {
@@ -632,82 +586,45 @@
             }
         }
     }
-
-    function updateDataSourceIndicator(source, reliable) {
-        const sourceElement = document.getElementById('dataSource');
-        const reliabilityElement = document.getElementById('reliability');
-        
-        if (sourceElement) {
-            sourceElement.textContent = source;
-        }
-        
-        if (reliabilityElement) {
-            reliabilityElement.style.color = reliable ? '#30D158' : '#FF9500';
-            reliabilityElement.textContent = reliable ? '●' : '◐';
-            reliabilityElement.title = reliable ? 'Pålidelig data' : 'Begrænsede data';
-        }
-    }
-
+    
     function handleFetchError(error) {
         hasLiveTeslaData = false;
+        priceDataSet.yesterday = [];
         priceDataSet.today = [];
         priceDataSet.tomorrow = [];
         priceData = [];
         
         document.getElementById('totalCost').textContent = '0 kr';
         document.getElementById('kWhNeeded').textContent = '0 kWh';
-        document.getElementById('chargingStart').textContent = 'Ingen forbindelse';
+        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
         
+        chargingSchedule.yesterday = [];
         chargingSchedule.today = [];
         chargingSchedule.tomorrow = [];
         
-        updateDataSourceIndicator('Fejl', false);
         generateChart();
     }
-
+    
+    console.log('🔄 STATUS: Data fetching og update funktioner oprettet');
+    
     // ==============================================
-    // TOOLTIP SYSTEM
+    // CHART GENERATION - ORIGINAL APPROACH
     // ==============================================
-
-    const tooltipPortal = document.getElementById('tooltipPortal');
-    let activeBar = null;
-
-    function showTooltip(barElement, text) {
-        activeBar = barElement;
-        const rect = barElement.getBoundingClientRect();
-        
-        tooltipPortal.textContent = text;
-        tooltipPortal.style.left = (rect.left + rect.width / 2) + 'px';
-        tooltipPortal.style.top = (rect.top - 8) + 'px';
-        tooltipPortal.style.transform = 'translate(-50%, -100%)';
-        tooltipPortal.classList.add('visible');
-    }
-
-    function hideTooltip() {
-        activeBar = null;
-        tooltipPortal.classList.remove('visible');
-    }
-
-    // ==============================================
-    // CHART GENERATION (FASE 1 STYLE - VIRKEDE!)
-    // ==============================================
-
     function generateChart() {
-        console.log('🔄 Generating chart for', currentDay, '- data length:', priceData.length);
+        console.log('🔄 STATUS: Generating chart for', currentDay, '- data length:', priceData.length);
         
         const chart = document.getElementById('priceChart');
         chart.innerHTML = '';
         
-        if (!priceData || priceData.length === 0) {
-            showEmptyState();
+        // Check if we have data
+        if (!hasDataForDay(currentDay)) {
+            showEmptyState(currentDay);
             return;
         }
         
         const maxPrice = Math.max(...priceData);
-        
         const now = new Date();
-        const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
-        const currentHour = copenhagenNow.getHours();
+        const currentHour = now.getHours();
         
         priceData.forEach((price, index) => {
             const bar = document.createElement('div');
@@ -716,14 +633,14 @@
             const height = Math.max((price / maxPrice) * 100, 5);
             bar.style.height = height + '%';
             
-            // FASE 2 FIX: Tooltip med 2 decimaler
-            const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
+            // Tooltip
+            const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(3).replace('.', ',')} kr/kWh`;
             
-            bar.addEventListener('mouseenter', function() {
+            bar.addEventListener('mouseenter', function(e) {
                 showTooltip(this, tooltipText);
             });
             
-            bar.addEventListener('mouseleave', function() {
+            bar.addEventListener('mouseleave', function(e) {
                 hideTooltip();
             });
             
@@ -740,14 +657,27 @@
                 
                 setTimeout(() => {
                     this.classList.remove('touch-active');
-                    if (activeBar === this) hideTooltip();
+                    if (activeBar === this) {
+                        hideTooltip();
+                    }
                 }, 3000);
             }, { passive: false });
             
-            // Bar styling (FASE 1 STYLE)
+            bar.addEventListener('touchend', function(e) {
+                e.preventDefault();
+            }, { passive: false });
+            
+            bar.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+            
+            // Bar styling
             const currentChargingHours = chargingSchedule[currentDay] || [];
             const isCharging = currentChargingHours.includes(index);
-            const isPastHour = (currentDay === 'today' && index < currentHour);
+            
+            const isPastHour = (currentDay === 'yesterday') || 
+                             (currentDay === 'today' && index < currentHour);
+            
             const isCurrentTime = (currentDay === 'today' && index === currentHour);
             
             if (isCurrentTime) {
@@ -770,11 +700,11 @@
             chart.appendChild(bar);
         });
         
-        console.log('✅ Chart generation completed');
+        console.log('✅ STATUS: Chart generation fuldført for', currentDay);
     }
-
-    function showEmptyState() {
-        console.log('🔄 Showing empty state for', currentDay);
+    
+    function showEmptyState(day) {
+        console.log('🔄 STATUS: Showing empty state for', day);
         
         const chart = document.getElementById('priceChart');
         
@@ -787,17 +717,16 @@
         const subMessage = document.createElement('div');
         subMessage.className = 'sub-message';
         
-        if (currentDay === 'tomorrow') {
+        if (day === 'tomorrow') {
             const now = new Date();
-            const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
-            const currentHour = copenhagenNow.getHours();
+            const currentHour = now.getHours();
             
             if (currentHour < 13) {
                 mainMessage.textContent = 'Ikke klar endnu';
-                subMessage.textContent = 'Priser bliver normalt\ntilgængelige efter kl. 13:00';
+                subMessage.textContent = 'Priser for i morgen bliver normalt\ntilgængelige efter kl. 13:00';
             } else {
                 mainMessage.textContent = 'Ingen data';
-                subMessage.textContent = 'Tesla data ikke tilgængeligt';
+                subMessage.textContent = 'Priser for i morgen er ikke\ntilgængelige endnu';
             }
         } else {
             mainMessage.textContent = 'Ingen data';
@@ -808,102 +737,77 @@
         emptyState.appendChild(subMessage);
         chart.appendChild(emptyState);
     }
-
+    
+    console.log('🔄 STATUS: Chart generation og empty state funktioner oprettet');
+    
     // ==============================================
-    // INITIALIZATION
+    // BATTERY OPTIMIZATION
     // ==============================================
-
+    function startBatteryOptimization() {
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                isPageVisible = false;
+                if (refreshTimer) {
+                    clearInterval(refreshTimer);
+                    refreshTimer = null;
+                    console.log('⏸️ Auto-refresh paused');
+                }
+            } else {
+                isPageVisible = true;
+                if (!refreshTimer) {
+                    refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
+                    console.log('▶️ Auto-refresh resumed');
+                    fetchTeslaData();
+                }
+            }
+        });
+    }
+    
+    console.log('🔄 STATUS: Battery optimization oprettet');
+    
+    // ==============================================
+    // INITIALIZATION - ORIGINAL SIMPLE APPROACH
+    // ==============================================
     function init() {
-        console.log('🔄 Initializing Tesla Dashboard - Fase 2 Fixed...');
+        console.log('🔄 STATUS: Initializing dashboard...');
         
-        // Initialize UI
+        // Initialize with no data state
         document.getElementById('totalCost').textContent = '0 kr';
         document.getElementById('kWhNeeded').textContent = '0 kWh';
-        document.getElementById('chargingStart').textContent = 'Indlæser...';
+        document.getElementById('chargingStart').textContent = 'Ladning ikke planlagt';
         
-        updateDataSourceIndicator('Indlæser...', false);
-        
-        // Clear data structures (FASE 1 STYLE)
+        // Clear all price data initially
+        priceDataSet.yesterday = [];
         priceDataSet.today = [];
         priceDataSet.tomorrow = [];
-        priceData = [];
+        priceData = priceDataSet.today; // Default to today
         
         // Show empty state initially
         generateChart();
         
-        // Start data fetching
+        // Start battery optimization
+        startBatteryOptimization();
+        
+        // Try to fetch live Tesla data
         fetchTeslaData();
         
-        console.log('✅ Tesla Dashboard initialization completed - Fase 2 Fixed');
+        console.log('✅ STATUS: Dashboard initialization fuldført');
     }
-
-    // ==============================================
-    // EVENT HANDLERS
-    // ==============================================
-
+    
     // Hide tooltip when clicking outside bars
     document.addEventListener('click', function(e) {
         if (!e.target.classList.contains('bar')) {
             hideTooltip();
         }
     });
-
-    // Handle page visibility for battery optimization
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            isPageVisible = false;
-            if (refreshTimer) {
-                clearInterval(refreshTimer);
-                refreshTimer = null;
-                console.log('⏸️ Auto-refresh paused');
-            }
-        } else {
-            isPageVisible = true;
-            if (!refreshTimer) {
-                refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
-                console.log('▶️ Auto-refresh resumed');
-                fetchTeslaData();
-            }
-        }
-    });
-
-    // Error handling
-    window.addEventListener('unhandledrejection', function(event) {
-        console.error('🚨 Unhandled promise rejection:', event.reason);
-    });
-
-    window.addEventListener('error', function(event) {
-        console.error('🚨 JavaScript error:', event.error);
-    });
-
+    
     // Initialize when DOM is ready
     document.addEventListener('DOMContentLoaded', init);
+    
+    console.log('✅ STATUS: Alle funktioner oprettet - klar til brug!');
+    console.log('🎯 FINALIZED: Tilbage til original working approach med 3-day price support');
+</script>
+```
 
-    // Global functions for backward compatibility
-    window.generateChart = generateChart;
-    window.fetchTeslaData = fetchTeslaData;
-
-    // Debug interface
-    window.debugDashboard = {
-        config: () => CONFIG,
-        priceData: () => priceDataSet,
-        currentData: () => priceData,
-        charging: () => chargingSchedule,
-        teslaData: () => currentTeslaData,
-        refresh: fetchTeslaData,
-        fallback: attemptBilligkWhFallback
-    };
-
-    console.log('');
-    console.log('✅ ================================================');
-    console.log('✅ FASE 2 FIXED: Simple data flow + fallback system');
-    console.log('✅ ================================================');
-    console.log('🔧 FIXED: Tooltip shows 2 decimaler (2,13 kr/kWh)');
-    console.log('🔧 FIXED: switchDay function error resolved');
-    console.log('🔧 KEPT: Fase 1 simple data flow (virkede!)');
-    console.log('🔧 ADDED: BilligkWh fallback system');
-    console.log('✅ ================================================');
-    console.log('🎯 READY: Chart bars should now be visible');
-    console.log('📊 FEATURES: Tesla → BilligkWh fallback');
-    console.log('🔧 DEBUG: Use debugDashboard for troubleshooting');
-    console.log('✅ ================================================');
+</body>
+</html>
