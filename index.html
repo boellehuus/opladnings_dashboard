@@ -8,13 +8,12 @@
     <meta name="mobile-web-app-capable" content="yes">
     <title>Tesla Ladeplan Dashboard</title>
     <!-- 
-    TESLA DASHBOARD - FASE 2 DATA FLOW IMPLEMENTERET
-    ================================================
-    ✅ Fase 1: Alle kritiske JavaScript fejl rettet
-    ✅ Fase 2: BilligkWh data splitting og fallback system
-    ✅ Forbedret data flow og GitHub Gist verificering
-    ✅ Robust fejlhåndtering med automatisk fallback
-    ✅ Tesla Logic Variables verificering og backup
+    TESLA DASHBOARD - FASE 2 FIXED: SIMPLE DATA FLOW + FALLBACK
+    ===========================================================
+    ✅ Fase 1: Simple data flow som virkede (bibeholdt)
+    ✅ Fase 2: Fallback system tilføjet (forenklet)
+    ✅ Tooltip: 2 decimaler implementeret
+    ✅ switchDay: Fejl rettet
     -->
 <style>
     * {
@@ -251,29 +250,6 @@
         line-height: 1.1;
     }
     
-    .debug-info {
-        background: #f8f8f8;
-        border: 1px solid #e8e8e8;
-        border-radius: 8px;
-        padding: 12px;
-        margin-top: 16px;
-        font-size: 11px;
-        color: #666;
-        font-family: 'SF Mono', Monaco, monospace;
-    }
-    
-    .debug-title {
-        font-weight: bold;
-        color: #1d1d1f;
-        margin-bottom: 8px;
-    }
-    
-    .debug-row {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 4px;
-    }
-    
     @keyframes charging-pulse {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.8; }
@@ -316,119 +292,95 @@
             </div>
             <div class="charging-start" id="chargingStart">Indlæser...</div>
         </div>
-
-        <!-- FASE 2: Debug panel for troubleshooting -->
-        <div class="debug-info" id="debugInfo" style="display:none;">
-            <div class="debug-title">Debug Information</div>
-            <div class="debug-row">
-                <span>Data Status:</span>
-                <span id="debugDataStatus">Unknown</span>
-            </div>
-            <div class="debug-row">
-                <span>Tesla Data:</span>
-                <span id="debugTeslaData">No</span>
-            </div>
-            <div class="debug-row">
-                <span>BilligkWh:</span>
-                <span id="debugBilligkWh">No</span>
-            </div>
-            <div class="debug-row">
-                <span>Today Prices:</span>
-                <span id="debugTodayCount">0</span>
-            </div>
-            <div class="debug-row">
-                <span>Tomorrow:</span>
-                <span id="debugTomorrowCount">0</span>
-            </div>
-        </div>
     </div>
 
     <div id="tooltipPortal" class="tooltip-portal"></div>
 
 <script>
     // ==============================================
-    // FASE 2: DATA FLOW & FALLBACK SYSTEM
+    // FASE 2 FIXED: SIMPLE DATA FLOW + FALLBACK
     // ==============================================
 
-    // GLOBAL STATE
+    // GLOBAL STATE (samme som Fase 1 - virkede!)
     let currentDay = 'today';
     let currentTeslaData = null;
     let refreshTimer = null;
     let isPageVisible = true;
     let hasLiveTeslaData = false;
-    let dataStatus = 'loading';
 
-    // FASE 2: Enhanced configuration with multiple data sources
+    // KONFIGURATION
     const CONFIG = {
         refreshInterval: 60000,
         retryAttempts: 3,
         retryDelay: 2000,
-        
-        // Primary data source (Tesla webhook output)
         dataURL: 'https://gist.githubusercontent.com/boellehuus/ac3fe4331b033d941cdc836936d4c3c9/raw/elbil-data.json',
-        
-        // Fallback data sources
         billigkwhURL: 'https://billigkwh.dk/api/Priser/HentPriser?sted=DK1&netselskab=vores_elnet&produkt=greenbow_elaftale',
         exchangeRateURL: 'https://api.exchangerate-api.com/v4/latest/EUR',
-        
-        // Exchange rate handling
         exchangeRateFallback: 7.44,
         cachedEURRate: 7.44,
-        lastRateUpdate: null,
-        
-        // FASE 2: Data validation thresholds
-        minValidPrices: 12, // Minimum hours to consider data valid
-        maxPriceThreshold: 10.0, // Maximum reasonable price per kWh
-        minPriceThreshold: 0.1   // Minimum reasonable price per kWh
+        lastRateUpdate: null
     };
 
-    // FASE 2: Enhanced data structures with validation
-    const priceDataSet = { 
-        today: [], 
-        tomorrow: [],
-        source: 'unknown',
-        lastUpdate: null,
-        isValid: false
-    };
-    
+    // DATA STRUKTURER (samme som Fase 1 - virkede!)
+    const priceDataSet = { today: [], tomorrow: [] };
     const chargingSchedule = { today: [], tomorrow: [] };
     let priceData = [];
 
-    console.log('🔄 FASE 2: Tesla Dashboard with enhanced data flow...');
+    console.log('🔄 FASE 2 FIXED: Tesla Dashboard med simple data flow...');
 
-    // Expose switchDay function immediately to fix onclick error
+    // Eksponér switchDay funktion øjeblikkeligt
     window.switchDay = function(day) {
-        switchDay(day);
+        try {
+            console.log('🔄 Switching to day:', day);
+            
+            // Update active button
+            document.querySelectorAll('.time-option').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Find and activate correct button
+            const buttons = document.querySelectorAll('.time-option');
+            buttons.forEach(btn => {
+                if ((day === 'today' && btn.textContent.includes('I dag')) ||
+                    (day === 'tomorrow' && btn.textContent.includes('morgen'))) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update current day
+            currentDay = day;
+            
+            // Update data (FASE 1 STYLE - SIMPLE!)
+            priceData = priceDataSet[day] || [];
+            
+            console.log(`✅ Switched to ${day}:`, priceData.length, 'prices');
+            
+            // Regenerate chart
+            generateChart();
+            
+        } catch (error) {
+            console.error('❌ Error switching day:', error);
+            priceData = [];
+            generateChart();
+        }
     };
 
     // ==============================================
-    // FASE 2: ENHANCED BILLIGKWH DATA PROCESSING
+    // FASE 2: BILLIGKWH FALLBACK (FORENKLET)
     // ==============================================
 
     async function fetchBilligkWhData() {
         try {
-            console.log('⚡ FASE 2: Fetching BilligkWh data with validation...');
+            console.log('⚡ Fetching BilligkWh fallback data...');
             
-            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now(), {
-                headers: { 'User-Agent': 'Tesla-Dashboard/2.0' }
-            });
-            
-            if (!response.ok) {
-                throw new Error(`BilligkWh HTTP ${response.status}`);
-            }
+            const response = await fetch(CONFIG.billigkwhURL + '&t=' + Date.now());
+            if (!response.ok) throw new Error(`BilligkWh HTTP ${response.status}`);
             
             const data = await response.json();
-            console.log('✅ BilligkWh raw data received:', data.length, 'days');
+            console.log('✅ BilligkWh data received:', data.length, 'days');
             
-            // FASE 2: Split data into today/tomorrow with validation
-            const processedData = await processBilligkWhData(data);
-            
-            if (processedData.isValid) {
-                console.log('✅ BilligkWh data processed successfully');
-                return processedData;
-            } else {
-                throw new Error('BilligkWh data validation failed');
-            }
+            // SIMPLE processing - lige som Fase 1
+            return await processBilligkWhData(data);
             
         } catch (error) {
             console.warn('⚠️ BilligkWh fetch failed:', error.message);
@@ -436,17 +388,9 @@
         }
     }
 
-    // FASE 2: Process and validate BilligkWh data
     async function processBilligkWhData(rawData) {
         try {
-            const result = {
-                today: [],
-                tomorrow: [],
-                source: 'BilligkWh',
-                lastUpdate: new Date(),
-                isValid: false
-            };
-
+            const result = { today: [], tomorrow: [] };
             const now = new Date();
             const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
             const todayDateStr = copenhagenNow.toISOString().split('T')[0];
@@ -454,12 +398,8 @@
             tomorrowDate.setDate(tomorrowDate.getDate() + 1);
             const tomorrowDateStr = tomorrowDate.toISOString().split('T')[0];
 
-            console.log('📅 Looking for dates:', todayDateStr, 'and', tomorrowDateStr);
-
-            // Get EUR/DKK rate for conversion
             const eurRate = await fetchExchangeRate();
 
-            // Process each day in the raw data
             for (const dayData of rawData) {
                 if (!dayData.Dato || !dayData.Priser) continue;
 
@@ -468,111 +408,59 @@
                 
                 if (dataDate === todayDateStr) {
                     targetArray = result.today;
-                    console.log('📊 Processing TODAY data for', dataDate);
                 } else if (dataDate === tomorrowDateStr) {
                     targetArray = result.tomorrow;
-                    console.log('📊 Processing TOMORROW data for', dataDate);
                 }
 
                 if (targetArray && Array.isArray(dayData.Priser)) {
-                    // Sort prices by hour
                     const sortedPrices = dayData.Priser
                         .sort((a, b) => a.StartTid.localeCompare(b.StartTid))
                         .map(pricePoint => {
-                            // Convert EUR/MWh to DKK/kWh
                             const eurPrice = parseFloat(pricePoint.Pris) || 0;
                             const dkkPrice = (eurPrice / 1000) * eurRate;
-                            return Math.round(dkkPrice * 1000) / 1000; // Round to 3 decimals
+                            return Math.round(dkkPrice * 1000) / 1000;
                         });
 
-                    // Ensure we have 24 hours
                     while (sortedPrices.length < 24) {
                         sortedPrices.push(sortedPrices[sortedPrices.length - 1] || 2.5);
                     }
 
                     targetArray.splice(0, 24, ...sortedPrices.slice(0, 24));
-                    console.log(`✅ Processed ${targetArray.length} hours for ${dataDate === todayDateStr ? 'today' : 'tomorrow'}`);
                 }
-            }
-
-            // Validate data quality
-            result.isValid = validatePriceData(result.today) || validatePriceData(result.tomorrow);
-            
-            if (result.isValid) {
-                console.log('✅ BilligkWh data validation passed');
-                console.log('📊 Today prices:', result.today.length, 'hours');
-                console.log('📊 Tomorrow prices:', result.tomorrow.length, 'hours');
             }
 
             return result;
 
         } catch (error) {
             console.error('❌ Error processing BilligkWh data:', error);
-            return { today: [], tomorrow: [], source: 'Error', lastUpdate: new Date(), isValid: false };
+            return null;
         }
     }
 
-    // FASE 2: Validate price data quality
-    function validatePriceData(prices) {
-        if (!Array.isArray(prices) || prices.length < CONFIG.minValidPrices) {
-            console.log('⚠️ Insufficient price data:', prices.length, 'hours');
-            return false;
-        }
-
-        // Check for reasonable price ranges
-        const validPrices = prices.filter(price => 
-            typeof price === 'number' && 
-            price >= CONFIG.minPriceThreshold && 
-            price <= CONFIG.maxPriceThreshold
-        );
-
-        const validRatio = validPrices.length / prices.length;
-        
-        if (validRatio < 0.8) {
-            console.log('⚠️ Too many invalid prices. Valid ratio:', Math.round(validRatio * 100) + '%');
-            return false;
-        }
-
-        console.log('✅ Price data validation passed:', validPrices.length, 'valid prices');
-        return true;
-    }
-
-    // FASE 2: Enhanced EUR/DKK rate fetching with better caching
     async function fetchExchangeRate() {
         try {
             const now = new Date();
             const lastUpdate = CONFIG.lastRateUpdate;
             
-            // Use cached rate if less than 24 hours old
             if (lastUpdate && (now - lastUpdate) < 24 * 60 * 60 * 1000) {
-                console.log('📈 Using cached EUR/DKK rate:', CONFIG.cachedEURRate);
                 return CONFIG.cachedEURRate;
             }
             
-            console.log('📈 Fetching fresh EUR/DKK rate...');
-            
-            const response = await fetch(CONFIG.exchangeRateURL + '?t=' + Date.now(), {
-                headers: { 'User-Agent': 'Tesla-Dashboard/2.0' }
-            });
+            const response = await fetch(CONFIG.exchangeRateURL + '?t=' + Date.now());
             
             if (response.ok) {
                 const data = await response.json();
                 if (data.rates && data.rates.DKK) {
                     const eurRate = parseFloat(data.rates.DKK);
-                    
-                    // Validate rate is reasonable (should be between 6-9 DKK per EUR)
                     if (eurRate > 6 && eurRate < 9) {
                         CONFIG.cachedEURRate = eurRate;
                         CONFIG.lastRateUpdate = now;
-                        console.log('✅ EUR/DKK rate updated:', eurRate);
                         return eurRate;
-                    } else {
-                        console.warn('⚠️ Unreasonable EUR rate received:', eurRate);
                     }
                 }
             }
             
-            throw new Error('Invalid API response or rate');
+            throw new Error('Invalid API response');
             
         } catch (error) {
             console.warn('⚠️ EUR rate fetch failed, using fallback:', CONFIG.exchangeRateFallback);
@@ -581,203 +469,117 @@
     }
 
     // ==============================================
-    // FASE 2: ENHANCED TESLA DATA INTEGRATION
+    // TESLA DATA (FASE 1 STYLE - SIMPLE!)
     // ==============================================
 
     async function fetchTeslaData() {
         try {
-            console.log('🔄 FASE 2: Fetching Tesla data with fallback system...');
-            dataStatus = 'loading';
-            updateDebugInfo();
+            console.log('🔄 Fetching Tesla data...');
             
-            const teslaResponse = await fetch(CONFIG.dataURL + '?t=' + Date.now(), {
-                headers: { 'User-Agent': 'Tesla-Dashboard/2.0' }
-            });
+            const teslaResponse = await fetch(CONFIG.dataURL + '?t=' + Date.now());
             
             if (!teslaResponse.ok) {
                 throw new Error(`Tesla HTTP ${teslaResponse.status}`);
             }
             
             const teslaData = await teslaResponse.json();
-            console.log('✅ Tesla data received, processing...');
+            console.log('✅ Tesla data received');
             
-            // FASE 2: Enhanced data processing with validation
-            const processed = await processTeslaData(teslaData);
+            // FASE 1 STYLE - DIRECT UPDATE!
+            updateUIWithTeslaData(teslaData);
             
-            if (processed.success) {
-                updateUIWithTeslaData(teslaData);
-                dataStatus = 'tesla';
-                console.log('✅ Tesla data processed successfully');
-            } else {
-                throw new Error('Tesla data validation failed');
-            }
-            
-            // Start refresh timer if not already running
             if (!refreshTimer) {
                 refreshTimer = setInterval(fetchTeslaData, CONFIG.refreshInterval);
                 console.log('🔄 Auto-refresh timer started');
             }
             
         } catch (error) {
-            console.error('❌ Tesla data fetch error:', error.message);
+            console.error('❌ Tesla data fetch error:', error);
             
-            // FASE 2: Fallback to BilligkWh data
+            // FASE 2: Fallback til BilligkWh
             await attemptBilligkWhFallback();
         }
-        
-        updateDebugInfo();
     }
 
-    // FASE 2: Process and validate Tesla data
-    async function processTeslaData(teslaData) {
-        try {
-            console.log('🔄 Processing Tesla data structure...');
-            
-            // Check for required Tesla data fields
-            const requiredFields = ['Elbil_price_data', 'Elbil_total_cost', 'Elbil_kWh_needed'];
-            const missingFields = requiredFields.filter(field => 
-                teslaData[field] === null || teslaData[field] === undefined
-            );
-            
-            if (missingFields.length > 0) {
-                console.warn('⚠️ Missing Tesla fields:', missingFields);
-            }
-            
-            // Validate price data
-            if (teslaData.Elbil_price_data && Array.isArray(teslaData.Elbil_price_data)) {
-                const isValid = validatePriceData(teslaData.Elbil_price_data);
-                if (isValid) {
-                    console.log('✅ Tesla price data validation passed');
-                    return { success: true, source: 'Tesla' };
-                }
-            }
-            
-            console.warn('⚠️ Tesla price data validation failed');
-            return { success: false, reason: 'Invalid price data' };
-            
-        } catch (error) {
-            console.error('❌ Tesla data processing error:', error);
-            return { success: false, reason: error.message };
-        }
-    }
-
-    // FASE 2: Fallback to BilligkWh when Tesla data fails
+    // FASE 2: Fallback system
     async function attemptBilligkWhFallback() {
         try {
-            console.log('🔄 FASE 2: Attempting BilligkWh fallback...');
-            dataStatus = 'fallback';
+            console.log('🔄 Attempting BilligkWh fallback...');
             
             const billigkWhData = await fetchBilligkWhData();
             
-            if (billigkWhData && billigkWhData.isValid) {
+            if (billigkWhData) {
                 console.log('✅ BilligkWh fallback successful');
                 
-                // Update price data set
+                // FASE 1 STYLE - DIRECT UPDATE!
                 priceDataSet.today = billigkWhData.today;
                 priceDataSet.tomorrow = billigkWhData.tomorrow;
-                priceDataSet.source = billigkWhData.source;
-                priceDataSet.lastUpdate = billigkWhData.lastUpdate;
-                priceDataSet.isValid = true;
                 
-                // Update UI with fallback data
-                updateUIWithFallbackData();
-                dataStatus = 'billigkwh';
+                // Clear Tesla-specific data
+                document.getElementById('totalCost').textContent = 'N/A';
+                document.getElementById('kWhNeeded').textContent = 'N/A';
+                document.getElementById('chargingStart').textContent = 'Kun priser tilgængelige';
+                
+                chargingSchedule.today = [];
+                chargingSchedule.tomorrow = [];
+                
+                updateDataSourceIndicator('BilligkWh (backup)', false);
+                
+                // FASE 1 STYLE - SIMPLE UPDATE!
+                priceData = priceDataSet[currentDay] || [];
+                generateChart();
                 
             } else {
                 throw new Error('BilligkWh fallback failed');
             }
             
         } catch (error) {
-            console.error('❌ Fallback system failed:', error);
-            dataStatus = 'error';
-            handleCompleteDataFailure();
+            console.error('❌ Complete data failure:', error);
+            handleFetchError(error);
         }
     }
 
-    // FASE 2: Enhanced Tesla data UI update
+    // FASE 1 STYLE - updateUIWithTeslaData (samme som virkede!)
     function updateUIWithTeslaData(teslaData) {
-        console.log('🔄 FASE 2: Updating UI with Tesla data...');
+        console.log('🔄 Updating UI with Tesla data...');
         
         currentTeslaData = teslaData;
         hasLiveTeslaData = true;
         
-        // Update summary info
         updateSummaryInfo(teslaData);
-        
-        // Update price data set
         updatePriceDataSet(teslaData);
-        
-        // Update charging schedule
         updateChargingHours(teslaData);
-        
-        // Update data source indicator
         updateDataSourceIndicator('Tesla', true);
         
-        // Set current day data and regenerate chart
+        // FASE 1 STYLE - DIRECT!
         priceData = priceDataSet[currentDay] || [];
         generateChart();
         
         console.log('✅ Tesla UI update completed');
     }
 
-    // FASE 2: Update UI with BilligkWh fallback data
-    function updateUIWithFallbackData() {
-        console.log('🔄 FASE 2: Updating UI with BilligkWh fallback...');
-        
-        // Clear Tesla-specific data
-        document.getElementById('totalCost').textContent = 'N/A';
-        document.getElementById('kWhNeeded').textContent = 'N/A';
-        document.getElementById('chargingStart').textContent = 'Kun priser tilgængelige';
-        
-        // Clear charging schedule
-        chargingSchedule.today = [];
-        chargingSchedule.tomorrow = [];
-        
-        // Update data source indicator
-        updateDataSourceIndicator('BilligkWh (backup)', false);
-        
-        // Set current day data and regenerate chart
-        priceData = priceDataSet[currentDay] || [];
-        generateChart();
-        
-        console.log('✅ Fallback UI update completed');
-    }
-
-    // FASE 2: Enhanced data mapping with validation
+    // FASE 1 STYLE - updatePriceDataSet (samme som virkede!)
     function updatePriceDataSet(teslaData) {
-        console.log('🔄 FASE 2: Updating price data set with validation...');
+        console.log('🔄 Updating price data set...');
         
-        // Reset data set
-        priceDataSet.today = [];
-        priceDataSet.tomorrow = [];
-        priceDataSet.source = 'Tesla';
-        priceDataSet.lastUpdate = new Date();
-        priceDataSet.isValid = false;
-        
-        // Process today's data
         if (teslaData.Elbil_price_data && Array.isArray(teslaData.Elbil_price_data)) {
-            priceDataSet.today = [...teslaData.Elbil_price_data];
+            priceDataSet.today = teslaData.Elbil_price_data;
             console.log('✅ Today prices loaded:', priceDataSet.today.length, 'hours');
-        }
-        
-        // Process tomorrow's data (if available)
-        if (teslaData.Elbil_price_data_tomorrow && Array.isArray(teslaData.Elbil_price_data_tomorrow)) {
-            priceDataSet.tomorrow = [...teslaData.Elbil_price_data_tomorrow];
-            console.log('✅ Tomorrow prices loaded:', priceDataSet.tomorrow.length, 'hours');
-        }
-        
-        // Validate at least one day has good data
-        priceDataSet.isValid = validatePriceData(priceDataSet.today) || validatePriceData(priceDataSet.tomorrow);
-        
-        if (priceDataSet.isValid) {
-            console.log('✅ Tesla price data set validated');
         } else {
-            console.warn('⚠️ Tesla price data validation failed');
+            priceDataSet.today = [];
         }
+        
+        if (teslaData.Elbil_price_data_tomorrow && Array.isArray(teslaData.Elbil_price_data_tomorrow)) {
+            priceDataSet.tomorrow = teslaData.Elbil_price_data_tomorrow;
+            console.log('✅ Tomorrow prices loaded:', priceDataSet.tomorrow.length, 'hours');
+        } else {
+            priceDataSet.tomorrow = [];
+        }
+        
+        console.log('✅ Price data set updated');
     }
 
     function updateSummaryInfo(teslaData) {
-        // Update cost
         if (teslaData.Elbil_total_cost !== null && teslaData.Elbil_total_cost !== undefined && teslaData.Elbil_total_cost > 0) {
             document.getElementById('totalCost').textContent = 
                 parseFloat(teslaData.Elbil_total_cost).toFixed(2).replace('.', ',') + ' kr';
@@ -785,7 +587,6 @@
             document.getElementById('totalCost').textContent = '0 kr';
         }
         
-        // Update kWh needed
         if (teslaData.Elbil_kWh_needed !== null && teslaData.Elbil_kWh_needed !== undefined && teslaData.Elbil_kWh_needed > 0) {
             document.getElementById('kWhNeeded').textContent = 
                 parseFloat(teslaData.Elbil_kWh_needed).toFixed(2).replace('.', ',') + ' kWh';
@@ -793,7 +594,6 @@
             document.getElementById('kWhNeeded').textContent = '0 kWh';
         }
         
-        // Update charging schedule
         if (teslaData.Elbil_compact_schedule && teslaData.Elbil_compact_schedule !== '') {
             document.getElementById('chargingStart').textContent = teslaData.Elbil_compact_schedule;
         } else {
@@ -802,7 +602,6 @@
     }
 
     function updateChargingHours(teslaData) {
-        // Reset charging schedule
         chargingSchedule.today = [];
         chargingSchedule.tomorrow = [];
         
@@ -834,27 +633,6 @@
         }
     }
 
-    // FASE 2: Handle complete data failure
-    function handleCompleteDataFailure() {
-        console.error('❌ FASE 2: Complete data failure - no sources available');
-        
-        hasLiveTeslaData = false;
-        priceDataSet.today = [];
-        priceDataSet.tomorrow = [];
-        priceDataSet.isValid = false;
-        priceData = [];
-        
-        document.getElementById('totalCost').textContent = '0 kr';
-        document.getElementById('kWhNeeded').textContent = '0 kWh';
-        document.getElementById('chargingStart').textContent = 'Ingen forbindelse';
-        
-        chargingSchedule.today = [];
-        chargingSchedule.tomorrow = [];
-        
-        updateDataSourceIndicator('Fejl - Ingen data', false);
-        generateChart();
-    }
-
     function updateDataSourceIndicator(source, reliable) {
         const sourceElement = document.getElementById('dataSource');
         const reliabilityElement = document.getElementById('reliability');
@@ -870,25 +648,21 @@
         }
     }
 
-    // ==============================================
-    // FASE 2: ENHANCED DEBUG SYSTEM
-    // ==============================================
-
-    function updateDebugInfo() {
-        const debugInfo = document.getElementById('debugInfo');
-        if (!debugInfo) return;
-
-        // Show debug panel if there are issues
-        const hasIssues = dataStatus === 'error' || dataStatus === 'fallback' || !priceDataSet.isValid;
-        debugInfo.style.display = hasIssues ? 'block' : 'none';
-
-        // Update debug fields
-        document.getElementById('debugDataStatus').textContent = dataStatus;
-        document.getElementById('debugTeslaData').textContent = hasLiveTeslaData ? 'Yes' : 'No';
-        document.getElementById('debugBilligkWh').textContent = 
-            (priceDataSet.source === 'BilligkWh') ? 'Yes' : 'No';
-        document.getElementById('debugTodayCount').textContent = priceDataSet.today.length;
-        document.getElementById('debugTomorrowCount').textContent = priceDataSet.tomorrow.length;
+    function handleFetchError(error) {
+        hasLiveTeslaData = false;
+        priceDataSet.today = [];
+        priceDataSet.tomorrow = [];
+        priceData = [];
+        
+        document.getElementById('totalCost').textContent = '0 kr';
+        document.getElementById('kWhNeeded').textContent = '0 kWh';
+        document.getElementById('chargingStart').textContent = 'Ingen forbindelse';
+        
+        chargingSchedule.today = [];
+        chargingSchedule.tomorrow = [];
+        
+        updateDataSourceIndicator('Fejl', false);
+        generateChart();
     }
 
     // ==============================================
@@ -915,11 +689,11 @@
     }
 
     // ==============================================
-    // CHART GENERATION
+    // CHART GENERATION (FASE 1 STYLE - VIRKEDE!)
     // ==============================================
 
     function generateChart() {
-        console.log('🔄 FASE 2: Generating chart for', currentDay, '- data length:', priceData.length);
+        console.log('🔄 Generating chart for', currentDay, '- data length:', priceData.length);
         
         const chart = document.getElementById('priceChart');
         chart.innerHTML = '';
@@ -931,7 +705,6 @@
         
         const maxPrice = Math.max(...priceData);
         
-        // Get current Copenhagen hour
         const now = new Date();
         const copenhagenNow = new Date(now.toLocaleString("en-US", {timeZone: "Europe/Copenhagen"}));
         const currentHour = copenhagenNow.getHours();
@@ -943,7 +716,7 @@
             const height = Math.max((price / maxPrice) * 100, 5);
             bar.style.height = height + '%';
             
-            // Tooltip
+            // FASE 2 FIX: Tooltip med 2 decimaler
             const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
             
             bar.addEventListener('mouseenter', function() {
@@ -971,7 +744,7 @@
                 }, 3000);
             }, { passive: false });
             
-            // Bar styling
+            // Bar styling (FASE 1 STYLE)
             const currentChargingHours = chargingSchedule[currentDay] || [];
             const isCharging = currentChargingHours.includes(index);
             const isPastHour = (currentDay === 'today' && index < currentHour);
@@ -1001,7 +774,7 @@
     }
 
     function showEmptyState() {
-        console.log('🔄 FASE 2: Showing enhanced empty state for', currentDay);
+        console.log('🔄 Showing empty state for', currentDay);
         
         const chart = document.getElementById('priceChart');
         
@@ -1022,24 +795,13 @@
             if (currentHour < 13) {
                 mainMessage.textContent = 'Ikke klar endnu';
                 subMessage.textContent = 'Priser bliver normalt\ntilgængelige efter kl. 13:00';
-            } else if (dataStatus === 'billigkwh') {
-                mainMessage.textContent = 'Backup data';
-                subMessage.textContent = 'Kun dagens priser tilgængelige\nfra BilligkWh backup';
             } else {
                 mainMessage.textContent = 'Ingen data';
                 subMessage.textContent = 'Tesla data ikke tilgængeligt';
             }
         } else {
-            if (dataStatus === 'error') {
-                mainMessage.textContent = 'Datafejl';
-                subMessage.textContent = 'Ingen kilder tilgængelige\nPrøv igen senere';
-            } else if (dataStatus === 'loading') {
-                mainMessage.textContent = 'Indlæser...';
-                subMessage.textContent = 'Henter data fra Tesla\nog backup kilder';
-            } else {
-                mainMessage.textContent = 'Ingen data';
-                subMessage.textContent = 'Kør Tesla script for at\ngenerere ladeplan og priser';
-            }
+            mainMessage.textContent = 'Ingen data';
+            subMessage.textContent = 'Kør Tesla script for at\ngenerere ladeplan og priser';
         }
         
         emptyState.appendChild(mainMessage);
@@ -1048,54 +810,11 @@
     }
 
     // ==============================================
-    // DAY SWITCHING
-    // ==============================================
-
-    function switchDay(day) {
-        try {
-            console.log('🔄 FASE 2: Switching to day:', day);
-            
-            // Update active button
-            document.querySelectorAll('.time-option').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Find and activate correct button
-            const buttons = document.querySelectorAll('.time-option');
-            buttons.forEach(btn => {
-                if ((day === 'today' && btn.textContent.includes('I dag')) ||
-                    (day === 'tomorrow' && btn.textContent.includes('morgen'))) {
-                    btn.classList.add('active');
-                }
-            });
-            
-            // Update current day
-            currentDay = day;
-            
-            // Update data
-            priceData = priceDataSet[day] || [];
-            
-            console.log(`✅ Switched to ${day}:`, priceData.length, 'prices');
-            
-            // Regenerate chart
-            generateChart();
-            
-            // Update debug info
-            updateDebugInfo();
-            
-        } catch (error) {
-            console.error('❌ Error switching day:', error);
-            priceData = [];
-            generateChart();
-        }
-    }
-
-    // ==============================================
     // INITIALIZATION
     // ==============================================
 
     function init() {
-        console.log('🔄 FASE 2: Initializing Tesla Dashboard with enhanced data flow...');
+        console.log('🔄 Initializing Tesla Dashboard - Fase 2 Fixed...');
         
         // Initialize UI
         document.getElementById('totalCost').textContent = '0 kr';
@@ -1104,21 +823,18 @@
         
         updateDataSourceIndicator('Indlæser...', false);
         
-        // Clear data structures
+        // Clear data structures (FASE 1 STYLE)
         priceDataSet.today = [];
         priceDataSet.tomorrow = [];
-        priceDataSet.isValid = false;
         priceData = [];
-        dataStatus = 'loading';
         
         // Show empty state initially
         generateChart();
-        updateDebugInfo();
         
         // Start data fetching
         fetchTeslaData();
         
-        console.log('✅ FASE 2: Tesla Dashboard initialization completed');
+        console.log('✅ Tesla Dashboard initialization completed - Fase 2 Fixed');
     }
 
     // ==============================================
@@ -1151,65 +867,43 @@
         }
     });
 
-    // Error handling for unhandled promises
+    // Error handling
     window.addEventListener('unhandledrejection', function(event) {
         console.error('🚨 Unhandled promise rejection:', event.reason);
-        if (dataStatus !== 'error') {
-            dataStatus = 'error';
-            updateDebugInfo();
-        }
     });
 
-    // Error handling for general JavaScript errors
     window.addEventListener('error', function(event) {
         console.error('🚨 JavaScript error:', event.error);
-        if (dataStatus !== 'error') {
-            dataStatus = 'error';
-            updateDebugInfo();
-        }
     });
 
     // Initialize when DOM is ready
     document.addEventListener('DOMContentLoaded', init);
 
-    // Expose global functions for backward compatibility BEFORE any other code
-    window.switchDay = switchDay;
+    // Global functions for backward compatibility
     window.generateChart = generateChart;
     window.fetchTeslaData = fetchTeslaData;
 
-    // FASE 2: Enhanced debug interface
+    // Debug interface
     window.debugDashboard = {
         config: () => CONFIG,
         priceData: () => priceDataSet,
         currentData: () => priceData,
         charging: () => chargingSchedule,
         teslaData: () => currentTeslaData,
-        status: () => dataStatus,
         refresh: fetchTeslaData,
-        switchDay: switchDay,
-        fallback: attemptBilligkWhFallback,
-        validate: (data) => validatePriceData(data),
-        showDebug: () => {
-            document.getElementById('debugInfo').style.display = 'block';
-            updateDebugInfo();
-        },
-        hideDebug: () => {
-            document.getElementById('debugInfo').style.display = 'none';
-        }
+        fallback: attemptBilligkWhFallback
     };
 
     console.log('');
     console.log('✅ ================================================');
-    console.log('✅ FASE 2 COMPLETE: Enhanced data flow implemented');
+    console.log('✅ FASE 2 FIXED: Simple data flow + fallback system');
     console.log('✅ ================================================');
-    console.log('🔧 ENHANCED: BilligkWh data splitting with validation');
-    console.log('🔧 ENHANCED: Robust fallback system implemented');
-    console.log('🔧 ENHANCED: Data quality validation added');
-    console.log('🔧 ENHANCED: Debug panel for troubleshooting');
-    console.log('🔧 ENHANCED: Multi-source data handling');
+    console.log('🔧 FIXED: Tooltip shows 2 decimaler (2,13 kr/kWh)');
+    console.log('🔧 FIXED: switchDay function error resolved');
+    console.log('🔧 KEPT: Fase 1 simple data flow (virkede!)');
+    console.log('🔧 ADDED: BilligkWh fallback system');
     console.log('✅ ================================================');
-    console.log('🎯 READY: Dashboard with intelligent fallback system');
-    console.log('📊 FEATURES: Tesla → BilligkWh → Error handling');
-    console.log('🔧 DEBUG: Enhanced window.debugDashboard available');
-    console.log('⚡ STATUS: Use debugDashboard.showDebug() for details');
+    console.log('🎯 READY: Chart bars should now be visible');
+    console.log('📊 FEATURES: Tesla → BilligkWh fallback');
+    console.log('🔧 DEBUG: Use debugDashboard for troubleshooting');
     console.log('✅ ================================================');
