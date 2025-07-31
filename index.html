@@ -396,6 +396,11 @@
 
     console.log('🔄 FASE 2: Tesla Dashboard with enhanced data flow...');
 
+    // Expose switchDay function immediately to fix onclick error
+    window.switchDay = function(day) {
+        switchDay(day);
+    };
+
     // ==============================================
     // FASE 2: ENHANCED BILLIGKWH DATA PROCESSING
     // ==============================================
@@ -939,7 +944,7 @@
             bar.style.height = height + '%';
             
             // Tooltip
-            const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(3).replace('.', ',')} kr/kWh`;
+            const tooltipText = `${index.toString().padStart(2, '0')}:00 - ${price.toFixed(2).replace('.', ',')} kr/kWh`;
             
             bar.addEventListener('mouseenter', function() {
                 showTooltip(this, tooltipText);
@@ -1167,7 +1172,7 @@
     // Initialize when DOM is ready
     document.addEventListener('DOMContentLoaded', init);
 
-    // Expose global functions for backward compatibility
+    // Expose global functions for backward compatibility BEFORE any other code
     window.switchDay = switchDay;
     window.generateChart = generateChart;
     window.fetchTeslaData = fetchTeslaData;
